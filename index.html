@@ -1,0 +1,1331 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f5f7">
+<title>OrderFile · 客户订单信息流</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#f5f5f7;
+  --card:#fff;
+  --line:rgba(0,0,0,.08);
+  --line2:rgba(0,0,0,.045);
+  --ink:#1d1d1f;
+  --ink2:#424245;
+  --muted:#86868b;
+  --brand:#1fb6c4;
+  --brand-d:#158a95;
+  --brand-s:rgba(31,182,196,.10);
+  --olive:#6b5d3f;
+  --danger:#d93a3a;
+  --danger-s:rgba(217,58,58,.09);
+  --warn:#c8811f;
+  --warn-s:rgba(200,129,31,.10);
+  --ok:#2f9e4f;
+  --ok-s:rgba(47,158,79,.10);
+  --r:14px;
+  --sh:0 1px 3px rgba(0,0,0,.05),0 8px 24px -8px rgba(0,0,0,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+}
+[v-cloak]{display:none}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font:inherit;color:inherit}
+
+/* ---------- 顶栏 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:rgba(250,250,252,.82);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--line);
+  padding:10px 20px;padding-top:calc(10px + env(safe-area-inset-top));
+  display:flex;align-items:center;gap:16px;
+}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand svg{width:34px;height:34px;flex-shrink:0;color:var(--brand)}
+.brand b{display:block;font-size:15.5px;letter-spacing:-.01em;line-height:1.2}
+.brand span{display:block;font-size:11.5px;color:var(--muted);line-height:1.2}
+.who{margin-left:auto;display:flex;align-items:center;gap:9px}
+.who .nm{font-size:13.5px;font-weight:600}
+.rsel{
+  border:1px solid var(--line);background:#fff;border-radius:9px;
+  padding:5px 9px;font-size:13px;
+}
+.tbtn{
+  border:1px solid var(--line);background:#fff;border-radius:9px;
+  padding:6px 12px;font-size:13px;color:var(--ink2);
+}
+.tbtn:hover{background:#f0f0f2}
+
+/* ---------- 布局 ---------- */
+.page{max-width:940px;margin:0 auto;padding:20px 20px 90px}
+.page.wide{max-width:1100px}
+.sect{margin-bottom:26px}
+.sect-h{
+  display:flex;align-items:center;gap:9px;margin-bottom:12px;
+  font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;
+}
+.sect-h svg{width:14px;height:14px}
+.sect-h .n{
+  margin-left:auto;font-size:12px;font-weight:700;color:#fff;background:var(--danger);
+  border-radius:999px;padding:1px 8px;letter-spacing:0;
+}
+
+/* ---------- 卡片 ---------- */
+.card{
+  background:var(--card);border:1px solid var(--line2);border-radius:var(--r);
+  box-shadow:var(--sh);padding:16px 17px;margin-bottom:11px;
+}
+.card.tap{cursor:pointer;transition:transform .18s,box-shadow .18s}
+.card.tap:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.06),0 14px 32px -10px rgba(0,0,0,.16)}
+.occ{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.occ-no{font-size:15px;font-weight:700;letter-spacing:-.01em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.occ-cust{font-size:13px;color:var(--ink2)}
+.unread{
+  margin-left:auto;display:inline-flex;align-items:center;gap:5px;
+  background:var(--danger);color:#fff;border-radius:999px;
+  font-size:11.5px;font-weight:700;padding:2px 9px;flex-shrink:0;
+}
+.unread.dim{background:var(--danger-s);color:var(--danger)}
+.badge{
+  display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+  padding:3px 10px;border-radius:999px;border:1px solid transparent;white-space:nowrap;
+}
+.badge.sales{background:var(--brand-s);color:var(--brand-d);border-color:rgba(31,182,196,.28)}
+.badge.design{background:#eef2fb;color:#3b5fa8;border-color:#d6e0f5}
+.badge.order{background:var(--warn-s);color:var(--warn);border-color:rgba(200,129,31,.26)}
+.badge.logistics{background:#e8f2f8;color:#2a6f8f;border-color:#d3e6f0}
+.badge.install{background:#f2ecfa;color:#6a48b5;border-color:#e3d9f5}
+.badge.done{background:var(--ok-s);color:var(--ok);border-color:rgba(47,158,79,.26)}
+.badge.over{background:var(--danger);color:#fff}
+.occ-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.occ-meta .must{color:var(--danger);font-weight:600}
+.occ-meta .conf{color:var(--ok);font-weight:600}
+
+/* ---------- 搜索 ---------- */
+.searchbar{
+  display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);
+  border-radius:11px;padding:9px 13px;margin-bottom:16px;box-shadow:var(--sh);
+}
+.searchbar svg{width:16px;height:16px;color:var(--muted);flex-shrink:0}
+.searchbar input{flex:1;border:none;outline:none;background:none;font-size:15px}
+.searchbar input::placeholder{color:#b0b0b5}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:3px;background:rgba(0,0,0,.045);border-radius:11px;padding:3px;margin-bottom:16px}
+.tab{
+  flex:1;text-align:center;padding:7px 4px;border-radius:9px;font-size:13.5px;font-weight:600;
+  color:var(--ink2);transition:.15s;position:relative;
+}
+.tab.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.10)}
+.tab .cnt{
+  display:inline-block;margin-left:5px;background:var(--danger);color:#fff;
+  border-radius:999px;font-size:10.5px;font-weight:700;padding:0 5px;vertical-align:1px;
+}
+
+/* ---------- chips ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  font-size:13px;padding:5px 12px;border-radius:999px;
+  background:#f1f1f4;color:var(--ink2);border:1px solid transparent;
+  transition:.13s;user-select:none;
+}
+.chip:hover{background:#e8e8ec}
+.chip.on{background:var(--brand);color:#fff;font-weight:600}
+.chip.must{background:var(--danger-s);color:var(--danger);font-weight:600;border-color:rgba(217,58,58,.2)}
+.chip.must.on{background:var(--danger);color:#fff}
+.chip.mid{background:var(--warn-s);color:var(--warn);font-weight:600;border-color:rgba(200,129,31,.2)}
+.chip.mid.on{background:var(--warn);color:#fff}
+.chip.no{background:#f1f1f4;color:var(--muted);text-decoration:line-through}
+.chip.cool{background:var(--brand-s);color:var(--brand-d);font-weight:600;border-color:rgba(31,182,196,.22)}
+.chip.sm{font-size:11.5px;padding:3px 9px}
+
+/* ---------- 硬性要求 ---------- */
+.req{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line2)}
+.req:last-child{border-bottom:none}
+.req .f{
+  flex-shrink:0;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;margin-top:2px;
+  background:#f1f1f4;color:var(--muted);
+}
+.req .f.must{background:var(--danger);color:#fff}
+.req .f.mid{background:var(--warn);color:#fff}
+.req .tx{font-size:14px;line-height:1.5}
+.req.must .tx{font-weight:600}
+
+/* ---------- 时间轴 ---------- */
+.tl{list-style:none;position:relative;padding:0}
+.tl::before{content:"";position:absolute;left:8px;top:10px;bottom:10px;width:2px;background:var(--line)}
+.tl>li{position:relative;padding:0 0 20px 30px}
+.tl>li:last-child{padding-bottom:0}
+.tl>li::before{
+  content:"";position:absolute;left:3px;top:5px;width:12px;height:12px;border-radius:50%;
+  background:#fff;border:2px solid var(--muted);
+}
+.tl>li.r-sales::before{border-color:var(--brand)}
+.tl>li.r-design::before{border-color:#3b5fa8}
+.tl>li.r-order::before{border-color:var(--warn)}
+.tl>li.r-logistics::before{border-color:#2a6f8f}
+.tl>li.r-install::before{border-color:#6a48b5}
+.tl .sep{
+  position:relative;padding:9px 0 9px 30px;margin:4px 0 18px;
+  border-top:1px dashed rgba(217,58,58,.45);border-bottom:1px dashed rgba(217,58,58,.45);
+  font-size:11.5px;font-weight:700;color:var(--danger);
+}
+.ev-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:3px}
+.ev-at{font-size:11px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+.ev-who{font-size:13px;font-weight:700}
+.ev-ty{
+  font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:4px;
+  background:#f1f1f4;color:var(--ink2);
+}
+.ev-ty.t-确认,.ev-ty.t-要求{background:var(--brand-s);color:var(--brand-d)}
+.ev-ty.t-变更{background:var(--danger-s);color:var(--danger)}
+.ev-ty.t-现场问题,.ev-ty.t-物流异常{background:var(--warn-s);color:var(--warn)}
+.ev-ty.t-装柜,.ev-ty.t-抵达,.ev-ty.t-发货{background:#e8f2f8;color:#2a6f8f}
+.ev-ty.t-退回{background:var(--danger);color:#fff}
+.ev-body{font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.ev-new{
+  background:var(--danger-s);border-radius:9px;padding:8px 11px;margin:0 -11px;
+  box-shadow:inset 3px 0 0 var(--danger);
+}
+.ev-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.att{
+  font-size:11.5px;color:var(--ink2);background:#f6f6f8;border:1px solid var(--line2);
+  border-radius:7px;padding:3px 9px;display:inline-flex;align-items:center;gap:5px;
+  text-decoration:none;max-width:230px;
+}
+.att:hover{background:#eeeef2}
+.att span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att.who{background:var(--brand-s);color:var(--brand-d);border-color:rgba(31,182,196,.2);font-weight:600}
+.thumbs{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.thumb{
+  width:74px;height:74px;border-radius:10px;object-fit:cover;
+  border:1px solid var(--line2);background:#f1f1f4;cursor:zoom-in;display:block;
+}
+
+/* ---------- 画像 / 确认 ---------- */
+.profile-card{background:var(--card);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--sh);padding:16px 17px;margin-bottom:11px}
+.conf-card{
+  background:linear-gradient(135deg,rgba(31,182,196,.09),rgba(31,182,196,.03));
+  border:1px solid rgba(31,182,196,.3);border-radius:var(--r);padding:16px 17px;margin-bottom:11px;
+}
+.conf-card.warn{background:linear-gradient(135deg,rgba(217,58,58,.10),rgba(217,58,58,.03));border-color:rgba(217,58,58,.35)}
+.conf-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+.conf-ver{font-size:17px;font-weight:800;letter-spacing:-.01em;color:var(--brand-d)}
+.conf-card.warn .conf-ver{color:var(--danger)}
+.lockbtn{font-size:11.5px;color:var(--brand-d);display:inline-flex;align-items:center;gap:4px}
+
+/* ---------- 表单 ---------- */
+.sheet-mask{
+  position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.28);
+  backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;
+}
+.sheet{
+  background:var(--bg);width:100%;max-width:620px;border-radius:20px 20px 0 0;
+  max-height:92vh;display:flex;flex-direction:column;
+  box-shadow:0 -8px 40px rgba(0,0,0,.24);
+  animation:up .26s cubic-bezier(.32,.72,0,1);
+}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@media(min-width:640px){
+  .sheet-mask{align-items:center}
+  .sheet{border-radius:18px;max-height:88vh}
+  @keyframes up{from{transform:scale(.97);opacity:0}to{transform:scale(1);opacity:1}}
+}
+.sheet-h{
+  padding:15px 20px 13px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:11px;
+  background:rgba(250,250,252,.9);backdrop-filter:blur(14px);border-radius:20px 20px 0 0;flex-shrink:0;
+}
+.sheet-h b{font-size:16px;flex:1}
+.sheet-b{flex:1;overflow-y:auto;padding:18px 20px;-webkit-overflow-scrolling:touch}
+.sheet-f{padding:13px 20px calc(13px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg);flex-shrink:0}
+.fld{margin-bottom:19px}
+.fld>label{
+  display:block;font-size:12px;font-weight:700;color:var(--muted);
+  margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase;
+}
+.fld>label .req-star{color:var(--danger)}
+.inp,.ta{
+  width:100%;background:#fff;border:1px solid var(--line);border-radius:11px;
+  padding:11px 13px;font-size:15px;outline:none;transition:.15s;
+}
+.inp:focus,.ta:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-s)}
+.ta{min-height:104px;resize:vertical;line-height:1.55;font-family:inherit}
+.inp::placeholder,.ta::placeholder{color:#b4b4b8}
+.hint{font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.5}
+.btn{
+  width:100%;padding:13px;border-radius:12px;font-size:15.5px;font-weight:700;
+  background:var(--brand);color:#fff;transition:.15s;
+}
+.btn:hover{background:var(--brand-d)}
+.btn:disabled{background:#c8c8cc;color:#fff;cursor:not-allowed}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.danger{background:var(--danger)}
+.btn.sm{width:auto;padding:8px 15px;font-size:13.5px}
+.btn-row{display:flex;gap:9px}
+.btn-row .btn{flex:1}
+.upload-row{display:flex;gap:9px}
+.upload-row .btn{flex:1}
+.files{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.file{
+  display:inline-flex;align-items:center;gap:6px;font-size:12.5px;
+  background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 10px;
+}
+.file .x{color:var(--danger);font-weight:700;cursor:pointer;font-size:15px;line-height:1}
+.file img{width:22px;height:22px;object-fit:cover;border-radius:4px}
+
+/* ---------- 登录 ---------- */
+.login{max-width:460px;margin:0 auto;padding:min(9vh,80px) 20px 40px}
+.login-h{text-align:center;margin-bottom:30px}
+.login-h svg{width:56px;height:56px;color:var(--brand);margin-bottom:12px}
+.login-h h1{font-size:25px;letter-spacing:-.02em;font-weight:700}
+.login-h p{font-size:14px;color:var(--muted);margin-top:6px}
+.pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
+.pick button{
+  background:#fff;border:1px solid var(--line2);border-radius:13px;
+  padding:15px 8px;text-align:center;box-shadow:var(--sh);transition:.16s;
+}
+.pick button:hover{transform:translateY(-2px);border-color:var(--brand)}
+.pick .av{
+  width:44px;height:44px;border-radius:50%;background:var(--brand-s);color:var(--brand-d);
+  display:flex;align-items:center;justify-content:center;margin:0 auto 8px;
+  font-size:16px;font-weight:700;
+}
+.pick .nm{font-size:13.5px;font-weight:600;display:block;line-height:1.3}
+.pick .rl{font-size:11px;color:var(--muted);display:block;margin-top:2px}
+
+/* ---------- toast ---------- */
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(24px + env(safe-area-inset-bottom));z-index:90;
+  background:rgba(28,28,30,.94);color:#fff;padding:11px 18px;border-radius:11px;
+  font-size:14px;max-width:88vw;text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.3);
+}
+.toast.err{background:rgba(190,42,42,.96)}
+.toast.ok{background:rgba(40,120,64,.96)}
+.spin{
+  display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);
+  border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px;
+}
+@keyframes sp{to{transform:rotate(360deg)}}
+.loading{padding:60px;text-align:center;color:var(--muted)}
+.empty{padding:44px 20px;text-align:center;color:var(--muted)}
+.empty svg{width:40px;height:40px;opacity:.35;margin-bottom:12px}
+.empty p{font-size:14px}
+
+.fab{
+  position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:30;
+  width:54px;height:54px;border-radius:50%;background:var(--brand);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 6px 20px rgba(31,182,196,.42);
+}
+.fab:active{transform:scale(.93)}
+.back{margin-left:auto;color:var(--brand);font-size:14px;font-weight:600}
+
+@media(max-width:640px){
+  .page{padding:14px 14px 90px}
+  .topbar{padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top))}
+  .brand svg{width:28px;height:28px}
+  .brand span{display:none}
+  .occ-no{font-size:14px}
+  .sheet-b{padding:15px 16px}
+}
+</style>
+</head>
+<body>
+
+<div id="app" v-cloak>
+
+  <!-- ================= 顶栏 ================= -->
+  <header class="topbar" v-if="user">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2c-2.2 0-3.6 1.5-3.6 3.3 0 1.2.6 2.2 1.5 2.8C7.8 8.6 6 9.6 6 12v3.5c0 1.6-.6 2.5-1.8 3.4-.5.4-.3 1.1.3 1.1h15c.6 0 .8-.7.3-1.1-1.2-.9-1.8-1.8-1.8-3.4V12c0-2.4-1.8-3.4-3.9-3.9.9-.6 1.5-1.6 1.5-2.8C15.6 3.5 14.2 2 12 2z"/>
+        <circle cx="12" cy="5" r=".9" fill="currentColor"/>
+      </svg>
+      <div>
+        <b>OrderFile</b>
+        <span>客户订单信息流</span>
+      </div>
+    </div>
+    <div class="who">
+      <span class="nm">{{ user.displayName }}</span>
+      <select class="rsel" v-model="role" @change="onRoleChange">
+        <option v-for="r in myRoles" :key="r" :value="r">{{ cfg.roles[r] || r }}</option>
+      </select>
+      <button class="tbtn" @click="logout">切换</button>
+    </div>
+  </header>
+
+  <!-- ================= 登录 ================= -->
+  <main class="login" v-if="!user">
+    <div class="login-h">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2c-2.2 0-3.6 1.5-3.6 3.3 0 1.2.6 2.2 1.5 2.8C7.8 8.6 6 9.6 6 12v3.5c0 1.6-.6 2.5-1.8 3.4-.5.4-.3 1.1.3 1.1h15c.6 0 .8-.7.3-1.1-1.2-.9-1.8-1.8-1.8-3.4V12c0-2.4-1.8-3.4-3.9-3.9.9-.6 1.5-1.6 1.5-2.8C15.6 3.5 14.2 2 12 2z"/>
+        <circle cx="12" cy="5" r=".9" fill="currentColor"/>
+      </svg>
+      <h1>OrderFile</h1>
+      <p>客户订单信息流 · 交接不断，信息不丢</p>
+    </div>
+    <div class="pick" v-if="cfgOk">
+      <button v-for="(u,k) in cfg.users" :key="k" @click="login(k)">
+        <span class="av">{{ initials(u.displayName) }}</span>
+        <span class="nm">{{ u.displayName }}</span>
+        <span class="rl">{{ roleList(u) }}</span>
+      </button>
+    </div>
+    <!-- ⚠️ 这里不能用 .pick 包：.pick button{background:#fff} 会盖掉 .btn 的背景，
+         造成「白底白字」的隐形按钮 -->
+    <div v-else style="text-align:center;padding:24px 18px;background:#fff;border:1px solid var(--line2);border-radius:14px;box-shadow:var(--sh)">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-9px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <p style="margin-top:12px;font-size:14.5px;font-weight:600">连不上服务器</p>
+      <p style="margin-top:6px;font-size:13px;color:var(--muted);line-height:1.55">
+        <template v-if="cfg.rosterError">
+          <b style="color:var(--danger);display:block;margin-bottom:6px">配置没读到</b>
+          {{ cfg.rosterError }}
+        </template>
+        <template v-else>
+          请检查手机有没有网。<br>还是不行的话找 Sami 报一下，别急。
+        </template>
+      </p>
+      <button class="btn sm" style="display:inline-block;margin-top:16px;padding:9px 24px" :disabled="busy" @click="boot">
+        <span v-if="busy" class="spin"></span>再试一次
+      </button>
+    </div>
+    <p class="hint" style="text-align:center;margin-top:22px">
+      内网使用，点名字即可进入。角色可在「设置」里调整。
+    </p>
+  </main>
+
+  <!-- ================= 首页 ================= -->
+  <main class="page" v-else-if="view === 'home'">
+    <div class="searchbar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+      <input v-model="q" @input="onSearch" placeholder="搜 projNo / 客户名 / 电话 / 关键词（如 挡水条）">
+      <button v-if="q" @click="q='';onSearch()" style="color:var(--muted);font-size:13px">清除</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab" :class="{on:tab==='inbox'}" @click="tab='inbox'">
+        待我处理<span v-if="tasks.inboxCount" class="cnt">{{ tasks.inboxCount }}</span>
+      </button>
+      <button class="tab" :class="{on:tab==='mine'}" @click="tab='mine'">
+        我的提交<span v-if="tasks.mineCount" class="cnt">{{ tasks.mineCount }}</span>
+      </button>
+      <button class="tab" :class="{on:tab==='all'}" @click="tab='all'">全部订单</button>
+    </div>
+
+    <div class="loading" v-if="busy"><span class="spin" style="border-color:rgba(0,0,0,.2);border-top-color:var(--brand)"></span>加载中…</div>
+
+    <template v-else-if="tab==='inbox'">
+      <div class="empty" v-if="!shown.length">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <p>没有等你处理的事。干净。</p>
+      </div>
+      <div class="card tap" v-for="o in shown" :key="o.projNo" @click="openOrder(o.projNo)">
+        <div class="occ">
+          <span class="occ-no">{{ o.projNo }}</span>
+          <span class="occ-cust">{{ o.customerName || '—' }}</span>
+          <span v-if="o.unread" class="unread">● {{ o.unread }} 条新</span>
+        </div>
+        <div class="occ-meta">
+          <span class="badge" :class="o.currentOwner">{{ cfg.roles[o.currentOwner] || o.currentOwner }}</span>
+          <span v-if="o.overdueDays > 0" class="badge over">已 {{ o.overdueDays }} 天</span>
+          <span v-if="o.hasRequirement" class="must">有必须做的要求</span>
+          <span v-if="o.confirmedVersion" class="conf">已确认 {{ o.confirmedVersion }}</span>
+        </div>
+      </div>
+    </template>
+
+    <template v-else-if="tab==='mine'">
+      <div class="empty" v-if="!shown.length">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <p>你提交的东西都有人回应了。</p>
+      </div>
+      <div class="card tap" v-for="o in shown" :key="o.projNo" @click="openOrder(o.projNo)">
+        <div class="occ">
+          <span class="occ-no">{{ o.projNo }}</span>
+          <span class="occ-cust">{{ o.customerName || '—' }}</span>
+          <span v-if="o.unread" class="unread">● {{ o.unread }} 条新</span>
+        </div>
+        <div class="occ-meta">
+          <span class="badge" :class="o.currentOwner">现在在 {{ cfg.roles[o.currentOwner] || o.currentOwner }} 手上</span>
+          <span>你提交：{{ o.myLastType }} {{ shortTime(o.myLastAt) }}</span>
+        </div>
+      </div>
+    </template>
+
+    <template v-else>
+      <div class="empty" v-if="!shown.length">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <p>{{ q ? '没找到「'+q+'」' : '还没有订单，点右下角用 projNo 建第一张单' }}</p>
+      </div>
+      <div class="card tap" v-for="o in shown" :key="o.projNo" @click="openOrder(o.projNo)">
+        <div class="occ">
+          <span class="occ-no">{{ o.projNo }}</span>
+          <span class="occ-cust">{{ o.customerName || '—' }}</span>
+          <span v-if="o.unread" class="unread">● {{ o.unread }} 条新</span>
+        </div>
+        <div class="occ-meta">
+          <span class="badge" :class="o.currentOwner">{{ cfg.roles[o.currentOwner] || o.currentOwner }}</span>
+          <span>{{ o.eventCount }} 条记录</span>
+          <span>{{ shortTime(o.updatedAt) }}</span>
+          <span v-if="o.confirmInvalid" class="must">确认件已失效</span>
+        </div>
+      </div>
+    </template>
+
+    <button class="fab" @click="newOrder" title="新建订单档案">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </main>
+
+  <!-- ================= 订单详情 ================= -->
+  <main class="page wide" v-else-if="view === 'order'">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button class="tbtn" @click="goHome">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="15 18 9 12 15 6"/></svg> 返回
+      </button>
+      <span v-if="isAdmin" style="margin-left:auto"><button class="tbtn" @click="view='settings'">角色设置</button></span>
+    </div>
+
+    <div class="loading" v-if="busy"><span class="spin" style="border-color:rgba(0,0,0,.2);border-top-color:var(--brand)"></span>加载中…</div>
+
+    <template v-else-if="order">
+      <!-- 身份 -->
+      <div class="profile-card">
+        <div class="occ" style="margin-bottom:9px">
+          <span class="occ-no" style="font-size:21px">{{ order.projNo }}</span>
+          <span class="occ-cust" style="font-size:15px">{{ order.customerName || '—' }}</span>
+        </div>
+        <div class="occ-meta" style="margin-bottom:13px">
+          <span class="badge" :class="order.currentOwner">现在在 {{ cfg.roles[order.currentOwner] || order.currentOwner }} 手上</span>
+          <span v-if="order.overdueDays > 0" class="badge over">已 {{ order.overdueDays }} 天</span>
+        </div>
+        <div style="font-size:13.5px;color:var(--ink2);display:grid;grid-template-columns:auto 1fr;gap:5px 14px">
+          <span style="color:var(--muted)">电话</span><span>{{ order.customerContact || '—' }}</span>
+          <span style="color:var(--muted)">地址</span><span>{{ order.customerAddress || '—' }}</span>
+          <span style="color:var(--muted)">金额</span><span style="font-weight:700">RM {{ money(order.quoteTotal) }}</span>
+        </div>
+        <p class="hint" style="margin-top:11px">以上资料实时读自报价系统，本系统不保存副本。</p>
+      </div>
+
+      <!-- 确认件 -->
+      <div v-if="order.currentConfirmed" class="conf-card" :class="{warn:order.currentConfirmed.amountMismatch || order.currentConfirmed.invalidatedAt}">
+        <div class="conf-head">
+          <span class="conf-ver">已确认 {{ order.currentConfirmed.version }}</span>
+          <span v-if="order.currentConfirmed.method==='written'" class="badge" style="background:var(--warn-s);color:var(--warn)">未经签字确认</span>
+          <span class="lockbtn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            已锁定
+          </span>
+          <span style="margin-left:auto;font-size:12.5px;color:var(--muted)">
+            签字金额 RM {{ money(order.currentConfirmed.amount) }} · {{ shortTime(order.currentConfirmed.confirmedAt) }}
+          </span>
+        </div>
+
+        <div v-if="order.currentConfirmed.amountMismatch" class="badge over" style="margin-bottom:9px">
+          报价金额已改为 RM {{ money(order.quoteTotal) }}，与签字时的 RM {{ money(order.currentConfirmed.amount) }} 不符 — 需重新签字
+        </div>
+        <div v-else-if="order.currentConfirmed.invalidatedAt" class="badge over" style="margin-bottom:9px">
+          {{ order.currentConfirmed.invalidReason }}
+        </div>
+
+        <div class="files">
+          <a class="att" v-for="(f,i) in order.currentConfirmed.evidence" :key="i" :href="f.url" target="_blank">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>{{ f.name }}</span>
+          </a>
+        </div>
+        <div v-if="history.length > 1" style="margin-top:13px">
+          <p class="hint" style="margin-bottom:6px">历史确认件</p>
+          <div class="files">
+            <span class="file" v-for="c in history" :key="c.id">
+              {{ c.version }}
+              <span style="color:var(--muted)">{{ shortTime(c.confirmedAt) }}</span>
+              <span v-if="c.invalidatedAt" style="color:var(--danger)">（已失效）</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 硬性要求 -->
+      <div class="sect" v-if="order.requirements && order.requirements.length">
+        <div class="sect-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4-6.2-4.6-6.2 4.6 2.4-7.4L4 9.4h7.6z"/></svg>
+          硬性要求
+          <span v-if="mustCount" class="n">{{ mustCount }} 条必须做</span>
+        </div>
+        <div class="card" style="padding:5px 17px">
+          <div class="req" v-for="r in sortedReqs" :key="r.id" :class="r.priority==='必须做'?'must':''">
+            <span class="f" :class="r.priority==='必须做'?'must':(r.priority==='尽量做'?'mid':'')">{{ r.priority }}</span>
+            <span class="tx">{{ r.text }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 客户画像 -->
+      <div class="sect" v-if="order.profile && order.profile.chips.length">
+        <div class="sect-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          客户画像
+        </div>
+        <div class="profile-card">
+          <div class="chips">
+            <span class="chip must" v-for="c in order.profile.chips" :key="c">{{ c }}</span>
+          </div>
+          <p v-if="order.profile.contactPref" class="hint" style="margin-top:11px">沟通偏好：{{ order.profile.contactPref }}</p>
+          <p v-if="order.profile.decisionMaker" class="hint">决策人：{{ order.profile.decisionMaker }}</p>
+          <p v-if="order.profile.taboo" class="hint" style="color:var(--danger)">禁忌：{{ order.profile.taboo }}</p>
+        </div>
+      </div>
+
+      <!-- 时间轴 -->
+      <div class="sect">
+        <div class="sect-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          时间轴 · 谁都不会覆盖
+        </div>
+        <div class="card">
+          <div v-if="!timeline.length" class="empty" style="padding:28px"><p>还没有记录</p></div>
+          <ul class="tl" v-else>
+            <template v-for="it in timeline">
+              <li v-if="it.sep" :key="it.key" class="sep">你上次看到这里 · {{ it.count }} 条新</li>
+              <li v-else :key="it.key" :class="'r-'+it.e.role" :class="{'ev-new':it.isNew}">
+                <div class="ev-head">
+                  <span class="ev-at">{{ it.e.at }}</span>
+                  <span class="ev-who">{{ nameOf(it.e.author) }}</span>
+                  <span class="ev-ty" :class="'t-'+it.e.type">{{ it.e.type }}</span>
+                  <span v-if="it.e.priority" class="chip sm" :class="it.e.priority==='必须做'?'must':(it.e.priority==='尽量做'?'mid':'no')">{{ it.e.priority }}</span>
+                </div>
+                <div class="ev-body">{{ it.e.content }}</div>
+                <div class="thumbs" v-if="it.e.photos && it.e.photos.length">
+                  <img class="thumb" v-for="(f,j) in it.e.photos" :key="j" :src="f.url" @click="zoom(f.url)" alt="">
+                </div>
+                <div class="ev-meta" v-if="(it.e.docs&&it.e.docs.length) || it.e.assignTo || it.e.handoff">
+                  <a class="att" v-for="(f,j) in it.e.docs" :key="'d'+j" :href="f.url" target="_blank">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>{{ f.name }}</span>
+                  </a>
+                  <span class="att who" v-if="it.e.assignTo">指派 {{ nameOf(it.e.assignTo) }}</span>
+                  <span class="att" v-if="it.e.handoff">→ 交给 {{ handoffLabel(it.e.handoff.to) }}</span>
+                </div>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-bottom:11px">
+        <button class="btn" v-if="role==='sales'" @click="openCompose('confirm')">客户已签字 · 提交确认</button>
+        <button class="btn ghost" v-else @click="openCompose()">＋ 我要填一条</button>
+        <button class="btn ghost" @click="printConf" v-if="order.customerName">打印确认单</button>
+      </div>
+    </template>
+  </main>
+
+  <!-- ================= 角色设置 ================= -->
+  <main class="page" v-else-if="view === 'settings'">
+    <div style="margin-bottom:16px"><button class="tbtn" @click="view='home'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="15 18 9 12 15 6"/></svg> 返回
+    </button></div>
+    <div class="sect-h">人员与角色</div>
+    <div class="card">
+      <div v-for="(u,k) in cfg.users" :key="k" style="padding:11px 0;border-bottom:1px solid var(--line2)">
+        <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
+          <div style="flex:1;min-width:130px">
+            <b style="font-size:14.5px">{{ u.displayName }}</b>
+            <span style="font-size:12px;color:var(--muted);display:block">{{ k }}</span>
+          </div>
+          <div class="chips" style="flex:2;min-width:220px">
+            <span class="chip sm" v-for="r in allRoles" :key="r"
+                  :class="{on:u.roles.indexOf(r)>=0}"
+                  @click="toggleRole(k,r)">{{ cfg.roles[r] }}</span>
+          </div>
+        </div>
+      </div>
+      <div style="padding-top:15px">
+        <button class="btn" :disabled="busy" @click="saveRoles">
+          <span v-if="busy" class="spin"></span>保存角色配置
+        </button>
+      </div>
+    </div>
+    <p class="hint">一个人可以有多个角色（比如业务���同时做设计）。登录时自己在顶栏切换当前角色。</p>
+  </main>
+
+  <!-- ================= 录入 sheet ================= -->
+  <div class="sheet-mask" v-if="view === 'compose'" @click.self="closeCompose">
+    <div class="sheet">
+      <div class="sheet-h">
+        <b>{{ composeTitle }}</b>
+        <button class="tbtn" @click="closeCompose">取消</button>
+      </div>
+
+      <div class="sheet-b">
+        <!-- 确认单模式 -->
+        <template v-if="c.mode === 'confirm'">
+          <div class="fld">
+            <label>客户签的是哪一版 <span class="req-star">*</span></label>
+            <input class="inp" v-model="c.version" placeholder="例如 V3">
+            <p class="hint">这一版会锁死，下单员按它拆单。版本错了后面全错。</p>
+          </div>
+          <div class="fld">
+            <label>确认方式</label>
+            <div class="chips">
+              <span class="chip" :class="{on:c.method==='signed'}" @click="c.method='signed'">客户已签字（优先）</span>
+              <span class="chip" :class="{on:c.method==='written'}" @click="c.method='written'">客户已书面确认</span>
+            </div>
+            <p class="hint" v-if="c.method==='written'">
+              订单上会标注「未经签字确认」，下单员和安装员都能看到。
+            </p>
+          </div>
+          <div class="fld">
+            <label>{{ c.method==='signed' ? '签字件照片' : '客户书面确认截图' }} <span class="req-star">*</span></label>
+            <div class="upload-row">
+              <button class="btn ghost sm" @click="$refs.evidence.click()">
+                {{ c.method==='signed' ? '拍签字件' : '传截图' }}
+              </button>
+            </div>
+            <input type="file" ref="evidence" accept="image/*" capture="environment" hidden @change="onEvidence">
+            <div class="files" v-if="c.evidence.length">
+              <span class="file" v-for="(f,i) in c.evidence" :key="i">
+                <img v-if="f.preview" :src="f.preview">
+                <span>{{ f.name }}</span>
+                <span class="x" @click="c.evidence.splice(i,1)">×</span>
+              </span>
+            </div>
+            <p class="hint">签字件是唯一的法律证据。没上传，下面的提交按钮点不动。</p>
+          </div>
+          <div class="fld" style="margin-bottom:6px">
+            <button class="btn ghost" @click="printConf">先打印确认单带去给客户签</button>
+          </div>
+        </template>
+
+        <!-- 普通录入 -->
+        <template v-else>
+          <div class="fld">
+            <label>类型</label>
+            <div class="chips">
+              <span class="chip" v-for="t in myTypes" :key="t" :class="{on:c.type===t}" @click="c.type=t">{{ t }}</span>
+            </div>
+          </div>
+
+          <div class="fld" v-if="role==='sales'">
+            <label>重要程度</label>
+            <div class="chips">
+              <span class="chip must" :class="{on:c.priority==='必须做'}" @click="c.priority='必须做'">必须做</span>
+              <span class="chip mid" :class="{on:c.priority==='尽量做'}" @click="c.priority='尽量做'">尽量做</span>
+              <span class="chip no" :class="{on:c.priority==='已拒绝'}" @click="c.priority='已拒绝'">已拒绝</span>
+            </div>
+            <p class="hint">选「必须做」的会置顶到订单最上面，装的时候不会漏。</p>
+          </div>
+
+          <div class="fld" v-if="role==='sales'">
+            <label>客户画像（点一下选中）</label>
+            <div class="chips">
+              <span class="chip" v-for="p in cfg.profileChips" :key="p"
+                    :class="{on:profileSel.indexOf(p)>=0}" @click="toggleProfile(p)">{{ p }}</span>
+            </div>
+            <div class="chips" style="margin-top:9px">
+              <span class="chip cool sm" v-for="p in cfg.contactPrefs" :key="p"
+                    :class="{on:c.contactPref===p}" @click="c.contactPref = c.contactPref===p ? '' : p">{{ p }}</span>
+            </div>
+          </div>
+
+          <div class="fld" v-if="role==='install'">
+            <label>现场有问题吗？点一下，没有就跳过</label>
+            <div class="chips">
+              <span class="chip must" v-for="p in cfg.installProblems" :key="p"
+                    :class="{on:c.probs.indexOf(p)>=0}" @click="toggleProb(p)">{{ p }}</span>
+            </div>
+          </div>
+
+          <div class="fld">
+            <label>{{ c.type==='要求' ? '客户说了什么（必填）' : '记录内容' }}</label>
+            <textarea class="ta" v-model="c.content" :placeholder="placeholder()"></textarea>
+          </div>
+
+          <div class="fld">
+            <label>照片 / 文件</label>
+            <div class="upload-row">
+              <button class="btn ghost sm" @click="$refs.cam.click()">＋ 拍照</button>
+              <button class="btn ghost sm" @click="$refs.file.click()">＋ 传文件</button>
+            </div>
+            <input type="file" ref="cam" accept="image/*" capture="environment" hidden multiple @change="onPhotos">
+            <input type="file" ref="file" multiple hidden @change="onDocs">
+            <div class="files" v-if="c.photos.length || c.docs.length">
+              <span class="file" v-for="(f,i) in c.photos" :key="'p'+i">
+                <img v-if="f.preview" :src="f.preview">
+                <span>{{ f.name }}</span>
+                <span class="x" @click="c.photos.splice(i,1)">×</span>
+              </span>
+              <span class="file" v-for="(f,i) in c.docs" :key="'d'+i">
+                <span>{{ f.name }}</span>
+                <span class="x" @click="c.docs.splice(i,1)">×</span>
+              </span>
+            </div>
+            <p class="hint">照片会自动压缩（长边 1600px，约 300KB），文件名系统自动带 projNo。</p>
+          </div>
+
+          <div class="fld" v-if="myUsers.length > 1">
+            <label>指派给谁跟进（可选）</label>
+            <div class="chips">
+              <span class="chip" v-for="u in myUsers" :key="u.key"
+                    :class="{on:c.assignTo===u.key}" @click="c.assignTo = c.assignTo===u.key ? '' : u.key">{{ u.name }}</span>
+            </div>
+          </div>
+
+          <div class="fld">
+            <label>提交后交给谁</label>
+            <div class="chips">
+              <span class="chip" v-for="h in handoffs" :key="h.to" :class="{on:c.handoffTo===h.to}"
+                    @click="c.handoffTo = c.handoffTo===h.to ? '' : h.to">{{ h.label }}</span>
+              <span class="chip" :class="{on:!c.handoffTo}" @click="c.handoffTo=''">不交接，留在本环节</span>
+            </div>
+            <p class="hint" v-if="c.handoffTo">提交后订单会自动转到{{ cfg.roles[c.handoffTo] }}手上，他那边会看到「待我处理」。</p>
+            <p class="hint" v-else>保持在当前环节，球还在你手上。</p>
+          </div>
+        </template>
+      </div>
+
+      <div class="sheet-f">
+        <button class="btn" :disabled="!canSubmit || busy" @click="submitCompose">
+          <span v-if="busy" class="spin"></span>{{ c.mode==='confirm' ? '提交确认 · 交接给下单员' : (c.handoffTo ? '提交并交接给' + (cfg.roles[c.handoffTo]||'') : '提交') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" v-if="toast" :class="toastKind">{{ toast }}</div>
+</div>
+
+<script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+<script>
+/* ============================================================
+ * GAS_URL —— OrderFile Web App
+ *
+ * ⚠️ 这是「新部署」的 URL。GAS 每次「新部署」URL 都会变，
+ *    变了必须同步改这里，否则前端 404，所有人以为系统坏了。
+ *    改完实测：<GAS_URL>?action=health 应返回 {"ok":true,...}
+ *
+ * 取值只能从 GAS 控制台 / 项目列表复制，别凭记忆写。
+ * ========================================================== */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzuwbRRD060rqlNQl8kqt-uLL5W8zbPiyQH4WEKKMk_-EnOmbWmSG7O1AVim99HfsVB6g/exec';
+
+/* ============================================================
+ * 工具
+ * ========================================================== */
+async function api(action, params = {}) {
+  const fd = new FormData();
+  fd.append('action', action);
+  for (const k in params) {
+    const v = params[k];
+    if (v === undefined || v === null || v === '') continue;
+    fd.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+  }
+  const r = await fetch(GAS_URL, { method: 'POST', body: fd });
+  const j = await r.json();
+  if (!j || j.ok === false) throw new Error((j && j.error) || '请求失败');
+  return j;
+}
+
+/** 前端压缩：手机原图 3-5MB 直传要 30 秒+，传一半人就走了 */
+function compressImage(file, maxSide = 1600, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    if (!/^image\//.test(file.type)) return resolve(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const sc = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      cv.toBlob(b => { URL.revokeObjectURL(url); resolve(b || file); }, 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+function toBase64(blob) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(',')[1]);
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+}
+
+const LS = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+  set(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+};
+
+/* ============================================================
+ * App
+ * ========================================================== */
+const HANDOFFS = {
+  sales:     [{ to: 'design', label: '交给设计师' }],
+  design:    [{ to: 'sales',  label: '交给业务员（去约客户签字）' }],
+  // 下单员可以跳过物流（本地送货不走柜），也可以走柜
+  order:     [{ to: 'logistics', label: '交给物流（走柜）' }, { to: 'install', label: '直接交给安装' }],
+  logistics: [{ to: 'install', label: '已抵达 · 交给安装' }],
+  install:   [{ to: 'done', label: '验收完成 · 完结' }]
+};
+
+const ROLE_ORDER = ['sales', 'design', 'order', 'logistics', 'install', 'admin'];
+
+const app = Vue.createApp({
+  data() {
+    return {
+      GAS_URL,
+      user: LS.get('of_user', null),
+      role: LS.get('of_role', 'sales'),
+      view: 'home',
+      tab: 'inbox',
+      q: '',
+      busy: false,
+      cfgOk: false,
+      toast: '', toastKind: '', toastTimer: null,
+      cfg: { users: {}, roles: {}, roleTypes: {}, profileChips: [], contactPrefs: [], installProblems: [], priorities: [] },
+      orders: [],
+      tasks: { inbox: [], mine: [], inboxCount: 0, mineCount: 0 },
+      order: null,
+      profileSel: [],
+      c: this.blank(),
+      newProjNo: ''
+    };
+  },
+
+  computed: {
+    myRoles() {
+      if (!this.user) return [];
+      const rs = (this.cfg.users[this.user.username] || {}).roles || ['sales'];
+      return rs.filter(r => ROLE_ORDER.indexOf(r) >= 0);
+    },
+    isAdmin() { return this.myRoles.indexOf('admin') >= 0; },
+    allRoles() { return ['admin', 'sales', 'design', 'order', 'install']; },
+    myTypes() { return (this.cfg.roleTypes || {})[this.role] || ['沟通']; },
+    myUsers() {
+      return Object.keys(this.cfg.users).map(k => ({ key: k, name: this.cfg.users[k].displayName }));
+    },
+    handoffs() { return HANDOFFS[this.role] || []; },
+    composeTitle() {
+      if (!this.order) return '';
+      return this.c.mode === 'confirm'
+        ? this.order.projNo + ' · 客户签字确认'
+        : this.order.projNo + ' · ' + (this.cfg.roles[this.role] || '') + '填一条';
+    },
+    shown() {
+      if (this.tab === 'inbox') return this.tasks.inbox || [];
+      if (this.tab === 'mine') return this.tasks.mine || [];
+      return this.orders;
+    },
+    timeline() {
+      if (!this.order) return [];
+      const evs = this.order.events || [];
+      const lastRaw = (this.order.lastRead || {})[this.user.username];
+      const last = lastRaw ? new Date(lastRaw).getTime() : 0;
+
+      let firstNew = -1;
+      for (let i = 0; i < evs.length; i++) {
+        if (new Date(evs[i].at).getTime() > last) { firstNew = i; break; }
+      }
+
+      // 分隔线是独立的一条记录，不能跟事件共用 v-if / v-else ——
+      // 那样第一条未读事件会被分隔线顶替掉，永远不显示（静默丢数据）
+      const out = [];
+      let sepDone = false;
+      for (let i = 0; i < evs.length; i++) {
+        const isNew = firstNew >= 0 && i >= firstNew;
+        if (isNew && !sepDone && last > 0) {
+          out.push({ sep: true, key: 'sep-' + i, before: firstNew, count: evs.length - firstNew });
+          sepDone = true;
+        }
+        out.push({ e: evs[i], isNew, key: evs[i].id });
+      }
+      return out;
+    },
+    mustCount() { return (this.order.requirements || []).filter(r => r.priority === '必须做').length; },
+    sortedReqs() {
+      const w = { '必须做': 0, '尽量做': 1, '已拒绝': 2 };
+      return [...(this.order.requirements || [])].sort((a, b) => (w[a.priority] ?? 9) - (w[b.priority] ?? 9));
+    },
+    history() { return this.order.confirmations || []; },
+    canSubmit() {
+      if (this.c.mode === 'confirm') return !!this.c.version.trim() && this.c.evidence.length > 0;
+      // 「要求」必须带优先级，否则不进置顶列表，"装的时候不会漏"就成了空话
+      if (this.c.type === '要求') return !!this.c.content.trim() && !!this.c.priority;
+      return true;
+    }
+  },
+
+  created() {
+    this.boot();
+  },
+
+  methods: {
+    blank() {
+      return {
+        mode: 'note', type: '沟通', priority: '', content: '',
+        photos: [], docs: [], assignTo: '', handoffTo: '', probs: [], contactPref: '',
+        version: '', method: 'signed', evidence: []
+      };
+    },
+
+    async boot() {
+      this.cfgOk = false;
+      try {
+        const r = await api('getConfig');
+        this.cfg = r;
+        // 名册为空也算「配置没读到」—— 否则登录页是一个空白页，
+        // 用户只会以为系统坏了，而不知道是后端配置问题
+        this.cfgOk = (r.rosterCount || 0) > 0;
+        if (this.user && !this.myRoles.length) this.logout();
+        if (this.user) { if (this.myRoles.indexOf(this.role) < 0) this.role = this.myRoles[0] || 'sales'; await this.refresh(); }
+      } catch (e) {
+        this.say('连不上后端：' + e.message, 'err', 7000);
+      }
+    },
+
+    async refresh() {
+      this.busy = true;
+      try {
+        const [t, l] = await Promise.all([
+          api('getMyTasks', { username: this.user.username, role: this.role }),
+          api('listOrders', { username: this.user.username })
+        ]);
+        this.tasks = t;
+        // 未读数由后端算好（含不在待办里的单），前端不再二次合并
+        this.orders = l.orders || [];
+      } catch (e) { this.say(e.message, 'err', 7000); }
+      this.busy = false;
+    },
+
+    login(username) {
+      this.user = { username, displayName: this.cfg.users[username].displayName };
+      const rs = this.myRoles;
+      this.role = rs[0] || 'sales';
+      LS.set('of_user', this.user); LS.set('of_role', this.role);
+      this.refresh();
+    },
+
+    logout() { this.user = null; LS.set('of_user', null); this.view = 'home'; },
+
+    onRoleChange() {
+      LS.set('of_role', this.role);
+      this.tab = 'inbox';
+      this.refresh();
+    },
+
+    async onSearch() {
+      if (!this.q.trim()) { await this.refresh(); return; }
+      this.busy = true;
+      try {
+        const r = await api('searchOrders', { q: this.q.trim(), username: this.user.username });
+        this.orders = r.orders || [];
+        this.tab = 'all';
+      } catch (e) { this.say(e.message, 'err', 7000); }
+      this.busy = false;
+    },
+
+    goHome() { this.view = 'home'; this.order = null; this.refresh(); },
+
+    async openOrder(projNo) {
+      this.view = 'order';
+      this.busy = true;
+      try {
+        const r = await api('getOrder', { projNo });
+        this.order = r.order;
+        await api('markRead', { projNo, username: this.user.username });
+        await this.refresh();
+      } catch (e) { this.say(e.message, 'err', 7000); this.view = 'home'; }
+      this.busy = false;
+    },
+
+    async newOrder() {
+      const pn = prompt('输入工程单号 projNo（报价系统里已存在的单）');
+      if (!pn) return;
+      this.busy = true;
+      try {
+        const r = await api('createOrder', { projNo: pn.trim() });
+        this.say(r.created ? '档案已建立' : '档案已存在，直接打开', 'ok');
+        await this.refresh();
+        await this.openOrder(pn.trim());
+      } catch (e) { this.say(e.message, 'err', 7000); }
+      this.busy = false;
+    },
+
+    openCompose(mode) {
+      this.c = this.blank();
+      if (mode === 'confirm') { this.c.mode = 'confirm'; }
+      else {
+        this.c.type = this.myTypes[0] || '沟通';
+        // 默认不交接 —— 强制交接会让人为了提交一条记录而误推进流程。
+        // 特别是安装员：随手记一条现场问题不等于验收完成。
+        this.c.handoffTo = '';
+      }
+      this.profileSel = [...((this.order.profile || {}).chips || [])];
+      this.view = 'compose';
+    },
+    closeCompose() { this.view = this.order ? 'order' : 'home'; },
+
+    toggleProfile(p) {
+      const i = this.profileSel.indexOf(p);
+      if (i >= 0) this.profileSel.splice(i, 1); else this.profileSel.push(p);
+    },
+    toggleProb(p) {
+      const i = this.c.probs.indexOf(p);
+      if (i >= 0) this.c.probs.splice(i, 1); else this.c.probs.push(p);
+    },
+
+    async onPhotos(e) {
+      const files = [...e.target.files];
+      e.target.value = '';
+      for (const f of files) {
+        this.busy = true;
+        try {
+          const blob = await compressImage(f);
+          this.c.photos.push({ name: f.name, blob, preview: URL.createObjectURL(blob), size: blob.size });
+        } catch (err) { this.say('照片处理失败：' + err.message, 'err'); }
+      }
+      this.busy = false;
+    },
+
+    async onDocs(e) {
+      const files = [...e.target.files];
+      e.target.value = '';
+      for (const f of files) {
+        if (f.size > 8 * 1024 * 1024) { this.say(f.name + ' 超过 8MB', 'err'); continue; }
+        this.c.docs.push({ name: f.name, blob: f, size: f.size });
+      }
+    },
+
+    async onEvidence(e) {
+      const files = [...e.target.files];
+      e.target.value = '';
+      for (const f of files) {
+        this.busy = true;
+        try {
+          const blob = await compressImage(f);
+          this.c.evidence.push({ name: f.name, blob, preview: URL.createObjectURL(blob), size: blob.size });
+        } catch (err) { this.say('处理失败：' + err.message, 'err'); }
+      }
+      this.busy = false;
+    },
+
+    async upload(list) {
+      const out = [];
+      for (const f of list) {
+        const b64 = await toBase64(f.blob);
+        const r = await api('uploadFile', { projNo: this.order.projNo, name: f.name, data: b64 });
+        out.push({ name: r.name, url: r.url, size: r.size });
+      }
+      return out;
+    },
+
+    async submitCompose() {
+      this.busy = true;
+      try {
+        if (this.c.mode === 'confirm') {
+          const evidence = await this.upload(this.c.evidence);
+          await api('submitConfirmation', {
+            projNo: this.order.projNo,
+            username: this.user.username,
+            version: this.c.version.trim(),
+            method: this.c.method,
+            evidence: evidence
+          });
+          this.say('确认件已锁定，交接给下单员', 'ok');
+        } else {
+          let content = this.c.content.trim();
+          if (this.c.probs.length) content += (content ? '\n' : '') + '现场问题：' + this.c.probs.join('、');
+          if (this.role === 'sales' && this.profileSel.length && !content) {
+            content = '客户画像：' + this.profileSel.join('、');
+          }
+          const photos = await this.upload(this.c.photos);
+          const docs = await this.upload(this.c.docs);
+          await api('appendEvent', {
+            projNo: this.order.projNo,
+            username: this.user.username,
+            role: this.role,
+            type: this.c.type,
+            priority: this.c.priority,
+            content: content,
+            photos: photos, docs: docs,
+            assignTo: this.c.assignTo,
+            handoffTo: this.c.handoffTo,
+            evidenceNames: (photos.length + docs.length) ? 'yes' : ''
+          });
+          // 画像增量合并
+          if (this.role === 'sales' && this.profileSel.length) {
+            await this.mergeProfile(this.profileSel, this.c.contactPref);
+          }
+          this.say('已记录', 'ok');
+        }
+        this.closeCompose();
+        await this.openOrder(this.order.projNo);
+      } catch (e) { this.say(e.message, 'err', 8000); }
+      this.busy = false;
+    },
+
+    async mergeProfile(chips, pref) {
+      try {
+        const r = await api('getOrder', { projNo: this.order.projNo });
+        const p = r.order.profile || {};
+        p.chips = [...new Set([...(p.chips || []), ...chips])];
+        if (pref) p.contactPref = pref;
+        await api('saveProfile', {
+          projNo: this.order.projNo, username: this.user.username,
+          profile: p
+        });
+      } catch (e) { /* 画像失败不阻塞主流程 */ }
+    },
+
+    /* ---------- 确认单打印 ---------- */
+    printConf() {
+      const o = this.order;
+      if (!o) return;
+      const ver = this.c.version || (o.currentConfirmed ? o.currentConfirmed.version : 'V1');
+      const salesEvents = (o.events || []).filter(x => x.role === 'sales');
+      const salesName = salesEvents.length ? this.nameOf(salesEvents[salesEvents.length - 1].author) : '';
+      const w = window.open('', '_blank');
+      if (!w) { this.say('浏览器拦截了弹窗，请允许后重试', 'err'); return; }
+      const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      w.document.write(`<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<title>客户确认单 ${esc(o.projNo)}</title>
+<style>
+  body{font:14px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#000;margin:0;padding:26px}
+  .sheet{max-width:760px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 3px;letter-spacing:.02em}
+  .en{font-size:11px;color:#666;letter-spacing:.2em;margin-bottom:20px}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:18px}
+  .no{font-family:monospace;font-size:17px;font-weight:700;border:1.5px solid #000;padding:5px 12px;border-radius:5px}
+  table{width:100%;border-collapse:collapse;margin-bottom:16px}
+  td{padding:9px 6px;border-bottom:1px solid #ddd;font-size:14.5px}
+  td.k{width:104px;color:#444;font-size:13px}
+  td.v{font-weight:600}
+  td.money{font-family:monospace;font-size:17px}
+  .terms{border:1px solid #999;border-radius:6px;padding:14px 16px;font-size:13px;background:#fafafa;margin-bottom:34px}
+  .sigrow{display:grid;grid-template-columns:2fr 1fr 1.4fr;gap:30px}
+  .sig span{font-size:12px;color:#444;display:block;margin-bottom:30px}
+  .sig i{display:block;border-top:1px solid #000;height:1px}
+  .ft{margin-top:26px;font-size:11px;color:#777;border-top:1px solid #ddd;padding-top:9px}
+  @media print{body{padding:0}.noprint{display:none}}
+</style></head><body><div class="sheet">
+  <div class="top">
+    <div><h1>客户确认单</h1><div class="en">CUSTOMER CONFIRMATION SHEET</div></div>
+    <div class="no">${esc(o.projNo)}</div>
+  </div>
+  <table>
+    <tr><td class="k">客户姓名</td><td class="v">${esc(o.customerName || '')}</td><td class="k">确认日期</td><td class="v">${new Date().toISOString().slice(0, 10)}</td></tr>
+    <tr><td class="k">安装地址</td><td class="v" colspan="3">${esc(o.customerAddress || '')}</td></tr>
+    <tr><td class="k">联系电话</td><td class="v">${esc(o.customerContact || '')}</td><td class="k">确认版本</td><td class="v">${esc(ver)}</td></tr>
+    <tr><td class="k">合同金额</td><td class="v money">RM ${this.money(o.quoteTotal)}</td><td class="k">交期</td><td class="v">${esc(o.currentConfirmed && o.currentConfirmed.deliveryDate ? o.currentConfirmed.deliveryDate : '＿＿＿＿＿＿')}</td></tr>
+    <tr><td class="k">业务员</td><td class="v" colspan="3">${esc(salesName)}</td></tr>
+  </table>
+  <div class="terms">
+    本人已阅并确认上述<b>设计方案（第 ${esc(ver)} 版）、合同金额及交期</b>，内容无异，
+    并授权本公司按此版本安排生产与安装。<br>
+    生产开始后如需变更设计、金额或交期，须另行签署变更确认单后方可生效。
+  </div>
+  <div class="sigrow">
+    <div class="sig"><span>客户签名</span><i></i></div>
+    <div class="sig"><span>日期</span><i></i></div>
+    <div class="sig"><span>业务员签名</span><i></i></div>
+  </div>
+  <div class="ft">本单一式两份，客户与公司各执一份。签字件为公司唯一下单依据，请务必妥善保管。</div>
+  <div class="noprint" style="margin-top:24px;text-align:center">
+    <button onclick="window.print()" style="font-size:15px;padding:10px 26px;border:1px solid #000;border-radius:8px;background:#fff;cursor:pointer">打印 / 存为 PDF</button>
+  </div>
+</div></body></html>`);
+      w.document.close();
+      setTimeout(() => w.print(), 400);
+    },
+
+    /* ---------- 设置 ---------- */
+    toggleRole(k, r) {
+      const u = this.cfg.users[k];
+      const i = u.roles.indexOf(r);
+      if (i >= 0) { if (u.roles.length > 1) u.roles.splice(i, 1); }
+      else u.roles.push(r);
+    },
+    async saveRoles() {
+      this.busy = true;
+      try {
+        const r = await api('saveConfig', { username: this.user.username, users: this.cfg.users });
+        this.cfg.users = r.users;
+        this.say('已保存', 'ok');
+      } catch (e) { this.say(e.message, 'err', 7000); }
+      this.busy = false;
+    },
+
+    /* ---------- 小工具 ---------- */
+    say(msg, kind = '', ttl = 2600) {
+      this.toast = msg; this.toastKind = kind;
+      clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => { this.toast = ''; }, ttl);
+    },
+    money(n) { return Number(n || 0).toLocaleString('en-MY'); },
+    initials(n) { return String(n || '?').slice(0, 1).toUpperCase(); },
+    roleList(u) { return (u.roles || []).map(r => this.cfg.roles[r] || r).join(' / ') || '—'; },
+    handoffLabel(to) {
+      if (to === 'done') return '完结';
+      return this.cfg.roles[to] || to;
+    },
+    nameOf(username) {
+      return (this.cfg.users[username] || {}).displayName || username || '—';
+    },
+    shortTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d)) return String(iso);
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    },
+    placeholder() {
+      return ({
+        要求: '例：厨房台面加 20mm 挡水条，客户说上次别家没做漏水了',
+        沟通: '例：客户下午才有空，电话已约 4 点',
+        问题: '例：客户对报价里第 3 项有疑问，要解释板材等级',
+        确认: '例：客户确认报价，可以收定金',
+        变更: '例：客户要加一个顶柜，金额 +RM 1,200',
+        注意事项: '例：电梯限高 1.9m，柜体要分体运输',
+        量尺: '例：厨房 3.6m，开封窗位左侧 40cm',
+        方案: '例：方案 V2，厨房改 L 型，其余按 V1',
+        排期: '例：工厂排 11-05 出货，11-08 装柜',
+        包装: '例：台面板单独木箱，柜门膜不能撕',
+        工艺: '例：挡水斜角收口，E0 板同色封边',
+        发货: '例：货已交船公司，预计 10-28 开柜',
+        装柜: '例：柜号 TCLU1234567，共 2 个 40HQ',
+        抵达: '例：10-26 上午到港，已约货柜拉货',
+        物流异常: '例：柜子延误 3 天，已通知客户改期',
+        现场问题: '例：墙面高低差 8mm，收口条要加厚',
+        验收: '例：客户现场验收通过，已签字'
+      })[this.c.type] || '写清楚一点，后面的人才不用再问一遍';
+    },
+    zoom(url) { window.open(url, '_blank'); }
+  }
+});
+
+app.mount('#app');
+
+/* 注册 PWA（离线可用；没部署 sw.js 也不影响） */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
