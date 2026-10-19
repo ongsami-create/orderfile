@@ -67,6 +67,48 @@ OrderFile **只存它没有的东西**：画像补充、硬性要求、设计版
 
 唯一例外：`customerSnapshot` 在**确认签字那一刻**冻结一份（见下）。
 
+### 🧑 客户画像存在哪（2026-10-19 拍板）
+
+**画像的唯一真相源 = 报价 JSON 的 `clientProfile` 顶层字段**，不另建画像文件。
+
+```json
+// Squirrel Designer/{业务员}/{projNo}.json
+{
+  "projNo": "SSD09",
+  "customerName": "...",
+  "clientProfile": {
+    "chips": ["有小孩", "洁癖", "认死理"],
+    "contactPrefs": ["微信", "只能下午联系"],
+    "freeNote": "",
+    "updatedAt": "2026-10-19",
+    "updatedBy": "SSD"
+  }
+}
+```
+
+**为什么安全**（已验证，不是推测）：报价系统写回时是
+`merged = Object.assign({}, oldData, quoteData)`（`GAS_QuotationSystem_Updated.gs:546`）——
+**顶层键合并，不是白名单**。新数据没有的顶层字段自动保留。
+（这道防线当初是为了保住 backadmin 写的 `commission` 才加的。）
+
+**为什么必须包成一个对象**：顶层散字段（`hasKids: true`）会被当成业务字段参与计算，
+每加一个还要改报价系统十几处。`clientProfile` 是「别人的地盘」，两边都不碰才安全。
+
+**为什么现在不拆独立文件**：Drive 结构是 `{业务员}/{projNo}.json`，
+**报价单是主键，客户不是**。没有 `clientId` 就只能用公司名/电话当文件名 →
+改名/换号/重名会引出一堆比原问题更难处理的边界情况。
+
+### ⚠️ 待统一：`arch.profile` 与 `clientProfile` 是两处
+
+`archives/{projNo}.json` 里已经有 `profile` 字段（见下方数据模型），由 `saveProfile` 写。
+它跟上面拍板的 `clientProfile` **是两份数据**，违反本项目「零复制」原则；
+而且 `_saveProfile_` 是**合并覆盖写**，不是 append event ——
+两个人同时改画像会互相覆盖，且时间轴上查不到「画像什么时候变的」，
+这跟「三个铁律」第 1 条（events 只追加）直接冲突。
+
+**待 Sami 拍板**：OrderFile 侧改只读（不再写 `arch.profile`，
+打开订单页时读报价的 `clientProfile`），还是保留写入但改为 append 一条 event。
+
 ---
 
 ## 🧬 数据模型
@@ -136,6 +178,25 @@ OrderFile **只存它没有的东西**：画像补充、硬性要求、设计版
 ---
 
 ## 🔄 流转规则
+
+> ⚠️ **2026-10-19 改版：固定流转链已取消。**
+> 原来的「业务员→设计师→下单员→物流→安装」7 环链被拿掉，改成三件事：
+> **谁建的（`createdBy`）· 现在归谁（`assignee`）· 做完没有（`done`）**。
+>
+> 理由：那 7 环在一线把人卡死（谁都得记住自己现在在哪一环），
+> 而且 `HANDOFF_ALLOWED` 白名单拦的「跳过环节直接结单」，
+> 现在由「指派给谁」明示 —— 该谁做谁的名字就在单上，不需要藏起来防。
+>
+> **旧数据会自动迁移**（`_migrate_` 把 `currentOwner==='done'` 转成 `done:true`），
+> 事件数组一条不动，8 条测试链路照样完整。
+
+| 动作 | 谁做 | 结果 |
+|---|---|---|
+| 建档 | 任何人，输入 projNo 即可 | 客户资料自动从报价读 |
+| 留言 | 任何人 | 追加一条 event，永不覆盖 |
+| 指派 | 任何人 | `assignee` 改成他，出现在他「待处理」 |
+| 完成 | 任何人 | 移到「已完成」，列表置灰 |
+
 
 ```
 业务员 ──画像+报价──► 设计师 ──方案 Vn──► 业务员 ──客户签字──► 下单员
