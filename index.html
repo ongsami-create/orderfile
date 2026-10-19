@@ -386,12 +386,15 @@ input,textarea,select{font:inherit;color:inherit}
     <!-- ⚠️ 这里不能用 .pick 包：.pick button{background:#fff} 会盖掉 .btn 的背景，
          造成「白底白字」的隐形按钮 -->
     <div v-else style="text-align:center;padding:24px 18px;background:#fff;border:1px solid var(--line2);border-radius:14px;box-shadow:var(--sh)">
-      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-9px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      <p style="margin-top:12px;font-size:14.5px;font-weight:600">连不上服务器</p>
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" :stroke="cfgSlow ? 'var(--warn)' : 'var(--danger)'" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-9px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <p style="margin-top:12px;font-size:14.5px;font-weight:600">{{ cfgSlow ? '服务器响应慢' : '连不上服务器' }}</p>
       <p style="margin-top:6px;font-size:13px;color:var(--muted);line-height:1.55">
-        <template v-if="cfg.rosterError">
-          <b style="color:var(--danger);display:block;margin-bottom:6px">配置没读到</b>
-          {{ cfg.rosterError }}
+        <!-- ⚠️ 这里读的是 boot() 真的写进去的 cfgError。
+             旧版读 cfg.rosterError，而 JS 里从来没赋值过 = 死分支，
+             所以不管什么原因，用户看到的永远是「请检查手机有没有网」。 -->
+        <template v-if="cfgError">
+          <b style="color:var(--warn);display:block;margin-bottom:6px">{{ cfgSlow ? '等一下就好' : '启动失败' }}</b>
+          {{ cfgError }}
         </template>
         <template v-else>
           请检查手机有没有网。<br>还是不行的话找 Sami 报一下，别急。
@@ -824,7 +827,17 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbzuwbRRD060rqlNQl8kqt-u
 /* ============================================================
  * 工具
  * ========================================================== */
-async function api(action, params = {}) {
+/**
+ * 后端请求
+ *
+ * ⚠️ 为什么要有超时和重试（2026-10-19 事故）：
+ *    GAS 冷启动本身约 1.7 秒，名册回退路径首次抓取可能到 5 秒以上。
+ *    旧版 fetch 裸调、无超时、无重试 —— 后端一慢，
+ *    用户看到的就是「连不上服务器」，完全分不清「慢」和「断」。
+ */
+const API_TIMEOUT_MS = 20000;
+
+async function apiOnce(action, params, timeoutMs) {
   const fd = new FormData();
   fd.append('action', action);
   for (const k in params) {
@@ -832,10 +845,37 @@ async function api(action, params = {}) {
     if (v === undefined || v === null || v === '') continue;
     fd.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
   }
-  const r = await fetch(GAS_URL, { method: 'POST', body: fd });
-  const j = await r.json();
-  if (!j || j.ok === false) throw new Error((j && j.error) || '请求失败');
-  return j;
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs || API_TIMEOUT_MS) : null;
+  try {
+    const r = await fetch(GAS_URL, { method: 'POST', body: fd, signal: ctrl ? ctrl.signal : undefined });
+    const j = await r.json();
+    if (!j || j.ok === false) throw new Error((j && j.error) || '请求失败');
+    return j;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function api(action, params = {}) {
+  try {
+    return await apiOnce(action, params);
+  } catch (e) {
+    // AbortError = 超时 = 服务器慢，不是断线。
+    // 超时值得自动重试一次（此时后端多半已经把缓存写好了）；网络错误不该重试。
+    if (!e || e.name !== 'AbortError') throw e;
+    await new Promise(r => setTimeout(r, 900));
+    try {
+      return await apiOnce(action, params, 45000);   // 重试放宽，别再把慢的掐掉
+    } catch (e2) {
+      if (e2 && e2.name === 'AbortError') {
+        const err = new Error('服务器响应太慢，等了 45 秒还没回。');
+        err.slow = true;
+        throw err;
+      }
+      throw e2;
+    }
+  }
 }
 
 /** 前端压缩：手机原图 3-5MB 直传要 30 秒+，传一半人就走了 */
@@ -896,6 +936,7 @@ const app = Vue.createApp({
       q: '',
       busy: false,
       cfgOk: false,
+      cfgError: '',        // 启动失败的原因。⚠️ 必须存状态：只弹 toast 的话一刷新就没了，用户无法判断该等还是该报修
       toast: '', toastKind: '', toastTimer: null,
       cfg: { users: {}, roles: {}, roleTypes: {}, profileChips: [], contactPrefs: [], installProblems: [], priorities: [] },
       orders: [],
@@ -908,6 +949,11 @@ const app = Vue.createApp({
   },
 
   computed: {
+    /** 「慢」和「断」分开：慢 = 后端在干活只是没回，断 = 根本没连上。
+        混为一谈会让排查方向完全跑偏（2026-10-19 就这么绕了半圈）。 */
+    cfgSlow() {
+      return !!(this.cfgError && this.cfgError.indexOf('太慢') >= 0);
+    },
     myRoles() {
       if (!this.user) return [];
       const rs = (this.cfg.users[this.user.username] || {}).roles || ['sales'];
@@ -985,16 +1031,27 @@ const app = Vue.createApp({
 
     async boot() {
       this.cfgOk = false;
+      this.cfgError = '';
       try {
         const r = await api('getConfig');
         this.cfg = r;
         // 名册为空也算「配置没读到」—— 否则登录页是一个空白页，
         // 用户只会以为系统坏了，而不知道是后端配置问题
         this.cfgOk = (r.rosterCount || 0) > 0;
+        if (!this.cfgOk) {
+          this.cfgError = '后端连上了，但人员名册是空的（0 个人）。'
+            + '找 Sami 跑一下 action=debugRoster 看名册读取情况。';
+        }
         if (this.user && !this.myRoles.length) this.logout();
         if (this.user) { if (this.myRoles.indexOf(this.role) < 0) this.role = this.myRoles[0] || 'sales'; await this.refresh(); }
       } catch (e) {
-        this.say('连不上后端：' + e.message, 'err', 7000);
+        // ⚠️ 「慢」和「断」必须分开说。原来两边都报「连不上服务器」，
+        //    害得 2026-10-19 排查了半天网络，其实后端只是要 39 秒。
+        this.cfgError = (e && e.slow)
+          ? '服务器响应太慢，不是断了。首次进来后端要重读一遍人员名册，慢的时候就是这样。'
+            + '再点一次「再试一次」，第二次通常就快了。'
+          : ('连不上后端：' + ((e && e.message) || e));
+        this.say(this.cfgError, 'err', 8000);
       }
     },
 
