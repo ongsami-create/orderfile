@@ -45,7 +45,8 @@ OrderFile **独立运行，不修改任何现有系统**。它**只读** Squirre
 ```
 Google Drive:
   OrderFile/
-    config.json                    ← 人员 + 角色配置（admin 可在界面改）
+    config.json                    ← roleOverrides（偏离主系统的项）+ chipSets（Admin 配的 chips）
+    index.json                     ← 列表索引（2026-10-20 加，见下「索引」一节）
     archives/
       PSD01-2401.json              ← 一个订单 = 一个档案文件
       PSD01-2402.json
@@ -57,6 +58,23 @@ Google Drive:
 Squirrel Designer (只读):
   Squirrel Designer/{username}/{projNo}.json
 ```
+
+### 索引：列表页为什么不再卡（2026-10-20 加）
+
+`index.json` 存每个档案的摘要（不含 events 全文）。
+
+| | 旧 | 新 |
+|---|---|---|
+| 列「待处理」 | 列 archives/ 全目录 + 逐个下载解析 | 读 index.json（1 次，走 ScriptCache 缓存） |
+| 实测 3 个档案 | **3.26 秒**（冷启动占 1.7 秒） | 与订单量无关 |
+| 推算 500 个档案 | 2~4 分钟 → 逼近 GAS 6 分钟上限 | 仍然 1 次读取 |
+
+**写入路径同步增量更新索引**（`_writeArchive_` → `_indexUpsert_`）：
+多 2 次 Drive 调用，换来读取恒定快 —— 写入低频、读取高频，这笔买卖划算。
+
+索引缺失或损坏时自动全量重建；管理员也可以 `action=rebuildIndex` 手动重建。
+
+---
 
 ### 为什么不把客户资料抄进来
 
@@ -98,16 +116,35 @@ OrderFile **只存它没有的东西**：画像补充、硬性要求、设计版
 **报价单是主键，客户不是**。没有 `clientId` 就只能用公司名/电话当文件名 →
 改名/换号/重名会引出一堆比原问题更难处理的边界情况。
 
-### ⚠️ 待统一：`arch.profile` 与 `clientProfile` 是两处
+### ✅ 画像归位：真相源 = OrderFile 侧 `arch.profile`（2026-10-20 定案）
 
-`archives/{projNo}.json` 里已经有 `profile` 字段（见下方数据模型），由 `saveProfile` 写。
-它跟上面拍板的 `clientProfile` **是两份数据**，违反本项目「零复制」原则；
-而且 `_saveProfile_` 是**合并覆盖写**，不是 append event ——
-两个人同时改画像会互相覆盖，且时间轴上查不到「画像什么时候变的」，
-这跟「三个铁律」第 1 条（events 只追加）直接冲突。
+**画像的唯一真相源 = `OrderFile/archives/{projNo}.json` 的 `profile` 字段。**
 
-**待 Sami 拍板**：OrderFile 侧改只读（不再写 `arch.profile`，
-打开订单页时读报价的 `clientProfile`），还是保留写入但改为 append 一条 event。
+报价里的 `clientProfile` 退化成**建档时的初始值**：建档那一次导入，之后不再同步。
+
+**为什么不能把多人写的画像放 quote JSON**（2026-10-20 实测）：
+
+报价系统的写回是 `merged = Object.assign({}, oldData, quoteData)`
+（`GAS_QuotationSystem_Updated.gs:546`）—— **顶层浅合并**。
+`clientProfile` 作为顶层 key 会被**整体替换**，不是深合并：
+
+```
+Stella 先写 chips=[有小孩]
+JIA 后写  chips=[洁癖]
+合并结果  = {"chips":["洁癖"]}     ← 有小孩 没了，contactPrefs 整个没了
+```
+
+而且是**静默丢失** —— 写的人那頭照样显示「保存成功」。
+
+**结论**：
+| | quote JSON | OrderFile 侧 |
+|---|---|---|
+| 适合 | 一个人写、别人读（客户名/电话/金额） | 多人协作写 |
+| 多人写 | ❌ 静默覆盖 | ✅ chips 并集合并 |
+
+所以：**信息流和画像都放 OrderFile 侧**，quote JSON 全程只读。
+
+老档案的 `clientProfile` 由 `_migrate_` 自动合并进 `profile`（幂等）。
 
 ---
 

@@ -700,7 +700,8 @@ function mockApi(action, p) {
       customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru',
       salesName: 'SAMI', salesPhone: '019-888 7766', quoteTotal: 42149,
       assignee: p.username || 'SSD', done: false, doneAt: '',
-      clientProfile: { chips: ['有小孩', '洁癖', '认死理'], contactPrefs: ['微信', '只能下午联系'] },
+      clientProfile: null,
+      profile: { chips: ['有小孩', '洁癖', '认死理'], contactPref: '只能下午联系' },
       lastRead: {},
       events: [
         { id: 'a1', at: new Date(now - 50 * H).toISOString(), author: 'SSD', type: '要求', replyChip: '', content: '客户要求所有板材用同一种颜色，色差不能超过一档。\n厨房台面高度要跟上次那单一样。', photos: [], docs: [], assignTo: 'FSD' },
@@ -838,9 +839,14 @@ createApp({
       return base;
     },
     profileChips() {
-      const p = this.order && this.order.clientProfile;
+      // ⚠️ 画像真相源 = OrderFile 侧的 order.profile（并集合合并）。
+      //    报价里的 clientProfile 只是建档时的初始值，不再跟这边同步 ——
+      //    报价系统的 Object.assign 是浅合并，多人写会互相覆盖。
+      const p = this.order && this.order.profile;
       if (!p) return [];
-      return (p.chips || []).concat(p.contactPrefs || []).filter(Boolean);
+      const out = (p.chips || []).filter(Boolean).slice();
+      if (p.contactPref && out.indexOf(p.contactPref) < 0) out.push(p.contactPref);
+      return out;
     },
     canSubmit() {
       const f = this.form;
