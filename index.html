@@ -398,11 +398,28 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         <div class="card" v-if="search.msg" :style="{padding:'14px 15px'}">
           <div style="font-size:14px" :style="{color: search.ok ? 'var(--green)' : 'var(--danger)'}">{{search.msg}}</div>
           <div v-if="search.found" style="margin-top:10px;font-size:15px;font-weight:700">{{search.found.customerName}}</div>
+          <div v-if="search.found" style="margin-top:4px;font-size:12.5px;color:var(--muted)">
+            {{search.found.customerContact || '没留电话'}} · {{search.found.salesperson || ''}}
+          </div>
+        </div>
+
+        <div class="card" v-if="search.found">
+          <div class="hd">3 · 顺手记下客户习惯（可跳过）</div>
+          <div class="chipwrap">
+            <button class="chip mini" v-for="c in profileChipOptions" :key="c"
+                    :class="{on: search.chips.indexOf(c)>=0}" @click="toggleSearchChip(c)">{{c}}</button>
+          </div>
+          <p style="margin:0;padding:0 15px 13px;font-size:12px;color:var(--muted);line-height:1.55">
+            建档之后也能改，在订单里的「客户画像 → 编辑」。
+          </p>
         </div>
       </div>
       <div class="sheet-ft">
-        <button class="btn" :disabled="busy || !search.projNo.trim()" @click="doSearch">
-          <span v-if="busy" class="spin"></span>{{ search.found ? '打开信息流' : '查报价' }}
+        <button class="btn" v-if="!search.found" :disabled="busy || !search.projNo.trim()" @click="doSearch">
+          <span v-if="busy" class="spin"></span>查报价
+        </button>
+        <button class="btn" v-else :disabled="busy" @click="createFromSearch">
+          <span v-if="busy" class="spin"></span>创建档案并打开
         </button>
       </div>
     </div>
@@ -438,10 +455,16 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
           <div class="kv" v-if="order.quoteTotal"><span class="k">金额</span><span class="v mono">RM {{money(order.quoteTotal)}}</span></div>
         </div>
 
-        <div class="card" v-if="profileChips.length">
-          <div class="hd">客户画像</div>
-          <div class="chipwrap" style="padding-top:2px">
+        <div class="card">
+          <div class="hd" style="display:flex;align-items:center;justify-content:space-between;padding-bottom:0">
+            <span>客户画像</span>
+            <button class="linkbtn" style="font-size:13px;padding:2px 0" @click="openProfile">编辑</button>
+          </div>
+          <div class="chipwrap" style="padding-top:2px" v-if="profileChips.length">
             <span class="tag" v-for="c in profileChips" :key="c">{{c}}</span>
+          </div>
+          <div class="empty" style="padding:16px 0 18px;font-size:13.5px;line-height:1.6" v-else>
+            还没记画像。<br>点「编辑」把这个客户的习惯写下来，后勤和安装的人就看得懂了。
           </div>
         </div>
 
@@ -640,6 +663,48 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
     </div>
   </div>
 
+  <!-- ============ 编辑客户画像 ============ -->
+  <div class="mask pmask" v-if="sheet==='profile'" @click.self="closeSheet">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <button class="linkbtn" @click="closeSheet">取消</button>
+        <h2 style="text-align:center">客户画像 · {{order?order.projNo:''}}</h2>
+        <span style="width:34px"></span>
+      </div>
+      <div class="sheet-bd">
+        <div class="card" style="margin-top:12px">
+          <div class="hd">习惯与偏好</div>
+          <div class="chipwrap">
+            <button class="chip mini" v-for="c in profileChipOptions" :key="c"
+                    :class="{on: formProfile.chips.indexOf(c)>=0}" @click="toggleProfileChip(c)">{{c}}</button>
+          </div>
+          <p style="margin:0;padding:0 15px 13px;font-size:12px;color:var(--muted);line-height:1.55">
+            点一下就加进去。已有的不会消失 —— 这份画像是全公司共用的，别人加的你也能看到。
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="hd">怎么联系他方便</div>
+          <div class="chipwrap">
+            <button class="chip mini" v-for="c in contactPrefOptions" :key="c"
+                    :class="{on: formProfile.contactPref===c}" @click="formProfile.contactPref = c">{{c}}</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">补充说明</div>
+          <textarea class="field" v-model="formProfile.note"
+                    placeholder="比如：厨房不能有味，客户很在意。客厅要多一个储物位。"></textarea>
+        </div>
+      </div>
+      <div class="sheet-ft">
+        <button class="btn" :disabled="busy" @click="saveProfile">
+          <span v-if="busy" class="spin"></span>保存
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" v-if="toast" :class="err">{{toast}}</div>
 </div>
 
@@ -664,8 +729,23 @@ const MOCK_USERS = {
   FSD: { displayName: 'STELLA', roles: ['admin', 'sales'] },
   JIA: { displayName: 'JIA', roles: ['install'] }
 };
-function mockApi(action, p) {
-  const users = {};
+function mockOrder(projNo) {
+  const now = Date.now(), H = 3600000;
+  return {
+    projNo: projNo || 'SSD09', customerName: 'RAY ONG',
+    customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru',
+    salesName: 'SAMI', salesPhone: '019-888 7766', quoteTotal: 42149,
+    assignee: 'SSD', done: false, doneAt: '',
+    profile: { chips: ['有小孩', '洁癖', '认死理'], contactPref: '只能下午联系' },
+    lastRead: {},
+    events: [
+      { id: 'a1', at: new Date(now - 50 * H).toISOString(), author: 'SSD', type: '要求', replyChip: '', content: '客户要求所有板材用同一种颜色，色差不能超过一档。\n厨房台面高度要跟上次那单一样。', photos: [], docs: [], assignTo: 'FSD' },
+      { id: 'a2', at: new Date(now - 28 * H).toISOString(), author: 'FSD', type: '方案', replyChip: '收到', content: '已量尺：厨房 3.2m × 2.1m，窗台下净高 92cm。\n出了 V1 方案，配色统一用暖白。', photos: [], docs: [], assignTo: 'SSD' },
+      { id: 'a3', at: new Date(now - 6 * H).toISOString(), author: 'SSD', type: '沟通', replyChip: '待确认', content: '客户看了 V1，嫌把手太细。约周四下午带样品上门。', photos: [], docs: [], assignTo: null }
+    ]
+  };
+}
+function mockApi(action, p) {  const users = {};
   Object.keys(MOCK_USERS).forEach(k => { users[k] = MOCK_USERS[k]; });
   const chipSets = {
     types: {
@@ -679,7 +759,19 @@ function mockApi(action, p) {
     replies: ['收到', '已安排', '明天再联系', '客户已改口', '待确认', '已完工', '客户不在', '要再量']
   };
   if (action === 'getConfig') {
-    return { ok: true, users, rosterCount: 3, roles: { admin: '管理员', sales: '业务员', design: '设计师', order: '下单员', logistics: '物流', install: '安装员' }, chipSets, source: 'MOCK' };
+    // ⚠️ 字段必须跟真后端 _getConfig_ 逐字段对齐，否则 mock 通过了真环境照样炸
+    //    （这次就是漏了 profileChips/contactPrefs，画像编辑的 chips 全空）
+    return {
+      ok: true, version: 'v2.0', users, rosterCount: 3,
+      roles: { admin: '管理员', sales: '业务员', design: '设计师', order: '下单员', logistics: '物流', install: '安装员' },
+      roleTypes: { admin: ['沟通','问题','变更','注意事项','确认'], sales: ['沟通','要求','问题','变更','注意事项','确认'], design: ['量尺','方案','问题','注意事项'], order: ['排期','包装','工艺','问题','注意事项'], logistics: ['发货','装柜','抵达','物流异常','注意事项'], install: ['现场问题','验收','注意事项'] },
+      chipSets,
+      profileChips: ['洁癖','不能抽烟','有小孩','有宠物','价格敏感','要求高','怕油烟','爱干净','老人同住','自己住','怕打扰','喜欢慢慢来','时间紧张','爱讨价还价','认死理','听设计师的','要自己拍板'],
+      contactPrefs: ['微信','电话','WhatsApp','只能上午联系','只能下午联系','周末才能联系'],
+      installProblems: ['墙面不平','缺件','磕碰','门缝不对','尺寸有误','客户改口','电梯进不去','楼层没电梯','现场无法施工','客户不在'],
+      priorities: ['必须做','尽量做','已拒绝'],
+      source: 'MOCK'
+    };
   }
   if (action === 'getInbox') {
     const now = Date.now(), H = 3600000;
@@ -693,22 +785,19 @@ function mockApi(action, p) {
   if (action === 'getQuoteInfo') {
     return { ok: true, projNo: p.projNo, owner: p.username || 'SSD', quote: { customerName: 'RAY ONG', customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru', salesperson: 'SAMI', salespersonContact: '019-888 7766', total: 42149 } };
   }
-  if (action === 'getOrder') {
-    const now = Date.now(), H = 3600000;
-    return { ok: true, order: {
-      projNo: p.projNo || 'SSD09', customerName: 'RAY ONG',
-      customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru',
-      salesName: 'SAMI', salesPhone: '019-888 7766', quoteTotal: 42149,
-      assignee: p.username || 'SSD', done: false, doneAt: '',
-      clientProfile: null,
-      profile: { chips: ['有小孩', '洁癖', '认死理'], contactPref: '只能下午联系' },
-      lastRead: {},
-      events: [
-        { id: 'a1', at: new Date(now - 50 * H).toISOString(), author: 'SSD', type: '要求', replyChip: '', content: '客户要求所有板材用同一种颜色，色差不能超过一档。\n厨房台面高度要跟上次那单一样。', photos: [], docs: [], assignTo: 'FSD' },
-        { id: 'a2', at: new Date(now - 28 * H).toISOString(), author: 'FSD', type: '方案', replyChip: '收到', content: '已量尺：厨房 3.2m × 2.1m，窗台下净高 92cm。\n出了 V1 方案，配色统一用暖白。', photos: [], docs: [], assignTo: 'SSD' },
-        { id: 'a3', at: new Date(now - 6 * H).toISOString(), author: 'SSD', type: '沟通', replyChip: '待确认', content: '客户看了 V1，嫌把手太细。约周四下午带样品上门。', photos: [], docs: [], assignTo: null }
-      ]
-    } };
+  if (action === 'getOrder') return { ok: true, order: mockOrder(p.projNo) };
+  if (action === 'saveProfile') {
+    const o = mockOrder(p.projNo);
+    if (p.profile) {
+      // ⚠️ 真后端收到的是 FormData 字符串（e.parameter 永远是 string），
+      //    mock 模式下直接拿到的是对象。两种都要认，否则会静默丢数据。
+      let pf = {};
+      try {
+        pf = (typeof p.profile === 'string') ? JSON.parse(p.profile) : (p.profile || {});
+      } catch (e) { pf = {}; }
+      o.profile = Object.assign({}, o.profile, pf);
+    }
+    return { ok: true, order: o };
   }
   if (action === 'uploadFile') return { ok: true, name: p.name, url: 'https://example.com/' + encodeURIComponent(p.name || 'file'), size: 1024 };
   return { ok: true };
@@ -807,7 +896,8 @@ createApp({
       order: null, timeline: [],
       busy: false,
       toast: '', toastKind: '', toastTimer: null,
-      search: { dept: 'sales', owner: '', projNo: '', msg: '', ok: false, found: null },
+      search: { dept: 'sales', owner: '', projNo: '', msg: '', ok: false, found: null, chips: [] },
+      formProfile: { chips: [], contactPref: '', note: '' },
       form: { projNo: '', type: '', content: '', replyChip: '', photos: [], docs: [], dept: '', assignTo: '', done: false },
       newReply: false, draftReply: '',
       myReplies: [],
@@ -838,6 +928,8 @@ createApp({
       this.myReplies.forEach(r => { if (base.indexOf(r) < 0) base.push(r); });
       return base;
     },
+    profileChipOptions() { return (this.cfg.profileChips || []); },
+    contactPrefOptions() { return (this.cfg.contactPrefs || []); },
     profileChips() {
       // ⚠️ 画像真相源 = OrderFile 侧的 order.profile（并集合合并）。
       //    报价里的 clientProfile 只是建档时的初始值，不再跟这边同步 ——
@@ -947,9 +1039,41 @@ createApp({
       this.busy = false;
     },
 
+    /* ---------- 客户画像 ---------- */
+    openProfile() {
+      const p = (this.order && this.order.profile) || {};
+      this.formProfile = {
+        chips: (p.chips || []).slice(),
+        contactPref: p.contactPref || '',
+        note: p.note || ''
+      };
+      this.sheet = 'profile';
+    },
+    toggleProfileChip(c) {
+      const i = this.formProfile.chips.indexOf(c);
+      if (i >= 0) this.formProfile.chips.splice(i, 1);
+      else this.formProfile.chips.push(c);
+    },
+    async saveProfile() {
+      this.busy = true;
+      try {
+        const r = await api('saveProfile', {
+          projNo: this.order.projNo,
+          username: this.me,
+          profile: this.formProfile
+        });
+        this.order = r.order;
+        // ⚠️ 回到信息流页，不是 '' —— sheet 是单一状态变量，
+        //    置空会把订单详情页一起关掉，用户会被踢回列表、丢失上下文。
+        this.sheet = 'order';
+        this.say('画像存好了', '', 1800);
+      } catch (e) { this.say(e.message, 'err', 6000); }
+      this.busy = false;
+    },
+
     /* ---------- 搜索 / 新增 ---------- */
     openSearch() {
-      this.search = { dept: 'sales', owner: this.me, projNo: '', msg: '', ok: false, found: null };
+      this.search = { dept: 'sales', owner: this.me, projNo: '', msg: '', ok: false, found: null, chips: [] };
       this.sheet = 'search';
     },
     closeSheet() {
@@ -972,9 +1096,31 @@ createApp({
         this.search.msg = e.message;
       }
       this.busy = false;
-      if (this.search.ok) {
+    },
+
+    /** 找到之后：建档（自动拉客户资料）+ 顺手存画像 + 打开信息流 */
+    async createFromSearch() {
+      const projNo = this.search.projNo.trim();
+      if (!projNo) return;
+      this.busy = true;
+      try {
+        // getOrder 档案不存在时会自动建档（客户资料从报价读）
+        await api('getOrder', { projNo, username: this.me, role: this.myRole });
+        if (this.search.chips.length) {
+          await api('saveProfile', {
+            projNo, username: this.me, profile: { chips: this.search.chips }
+          });
+        }
+        this.closeSheet();
         await this.openOrder(projNo);
-      }
+        await this.refreshInbox();
+      } catch (e) { this.say(e.message, 'err', 6000); }
+      this.busy = false;
+    },
+    toggleSearchChip(c) {
+      const i = this.search.chips.indexOf(c);
+      if (i >= 0) this.search.chips.splice(i, 1);
+      else this.search.chips.push(c);
     },
 
     /* ---------- 信息流 ---------- */
