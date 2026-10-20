@@ -283,17 +283,20 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
          上次就是按钮被父级 background 盖成白底白字 -->
     <div class="errcard" v-else>
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
-           :stroke="cfgSlow ? 'var(--orange)' : 'var(--danger)'"
+           :stroke="loading ? 'var(--brand)' : (cfgSlow ? 'var(--orange)' : 'var(--danger)')"
            stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <p style="font-size:16px;font-weight:700;color:var(--ink);margin-top:10px">
-        {{ cfgSlow ? '服务器响应慢' : '连不上服务器' }}
+        {{ loading ? '正在连接…' : (cfgSlow ? '服务器响应慢' : '连不上服务器') }}
       </p>
-      <p v-if="cfgError">{{cfgError}}</p>
+      <!-- ⚠️ 还在连的时候别说「连不上」—— 名册重建可能要十几秒，
+           那时候用户看到的应该是「等一下」，不是「坏了」 -->
+      <p v-if="loading">正在读取人员名册，第一次会慢一点。</p>
+      <p v-else-if="cfgError">{{cfgError}}</p>
       <p v-else>请检查手机有没有网。</p>
       <button class="btn" :disabled="busy" @click="boot">
-        <span v-if="busy" class="spin"></span>再试一次
+        <span v-if="busy" class="spin"></span>{{ loading ? '连接中' : '再试一次' }}
       </button>
     </div>
   </div>
@@ -900,7 +903,7 @@ createApp({
   data() {
     return {
       logo: LOGO_URL, logoFail: false,
-      cfgOk: false, cfgError: '',
+      cfgOk: false, cfgError: '', loading: false,
       cfg: { users: {}, roles: {}, chipSets: { types: {}, replies: [] } },
       me: '', myRole: 'sales',
       view: 'login', sheet: '',
@@ -1003,7 +1006,7 @@ createApp({
     },
 
     async boot() {
-      this.cfgOk = false; this.cfgError = ''; this.busy = true;
+      this.cfgOk = false; this.cfgError = ''; this.busy = true; this.loading = true;
       try {
         const r = await api('getConfig');
         this.cfg = r;
@@ -1025,7 +1028,7 @@ createApp({
           ? '服务器响应太慢，不是断了。点「再试一次」，第二次通常就快了。'
           : ('连不上后端：' + ((e && e.message) || e));
       }
-      this.busy = false;
+      this.busy = false; this.loading = false;
     },
 
     async login(username) {
