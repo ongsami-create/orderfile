@@ -266,6 +266,13 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
 }
 
 /* ---------- 列表：三段式（左内容 / 右更新人） ---------- */
+/* ⚠️ 必须是 flex —— 否则 .i-main / .i-right 的 flex 样式全部失效，
+   更新人不会跑到最右侧，整行是散的（2026-10-20 用户反馈「用户名字和更新时间不在最右侧」） */
+.item{
+  display:flex;align-items:flex-start;gap:10px;
+  width:100%;text-align:left;padding:12px 15px 12px 22px;
+  border-bottom:.5px solid var(--sep);position:relative;
+}
 .i-main{flex:1 1 auto;min-width:0}
 .i-l1{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 .i-l1 .cphone{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -377,52 +384,34 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
     <div class="subt">{{tabSub}}</div>
 
     <div class="searchbar">
-      <input v-model="kw" @keyup.enter="doSearch" placeholder="搜工程单号 / 电话 / 客户名 / 人名"
+      <input v-model="kw" placeholder="输入就筛：工程单号 / 电话 / 客户名 / 人名"
              autocapitalize="characters" autocorrect="off" spellcheck="false">
-      <button @click="doSearch" :disabled="searching">{{ searching ? '搜…' : '搜' }}</button>
+      <button v-if="kw" @click="kw=''">清除</button>
     </div>
 
-    <div class="seg" v-if="!searchMode">
+    <div class="seg">
       <button :class="{on:tab==='following'}" @click="switchTab('following')">跟进中<span class="n">{{inbox.following.length}}</span></button>
       <button :class="{on:tab==='quotes'}" @click="switchTab('quotes')">待处理<span class="n">{{quotes.length}}</span></button>
       <button :class="{on:tab==='done'}" @click="switchTab('done')">已完成<span class="n">{{inbox.done.length}}</span></button>
     </div>
 
-    <div class="wrap" v-if="searchMode">
-      <div class="list" v-if="searchResults.length">
-        <button class="item" v-for="(r,i) in searchResults" :key="'s'+i"
-                :class="{fin:r.done}" @click="openRow(r)">
-          <span class="dot" v-if="r.unread"></span>
-          <div class="i-main">
-            <div class="i-l1">
-              <span class="pno">{{r.projNo}}</span>
-              <span class="cname">{{r.customerName || '（未填客户名）'}}</span>
-              <span class="cphone" v-if="r.customerContact">{{r.customerContact}}</span>
-            </div>
-            <div class="i-l2" v-if="profileChipsOf(r).length">
-              <span class="tag" v-for="c in profileChipsOf(r)" :key="c">{{c}}</span>
-            </div>
-            <div class="i-l3" v-if="flowChipsOf(r).length">
-              <span class="tag" v-for="c in flowChipsOf(r)" :key="c">{{c}}</span>
-            </div>
-          </div>
-          <div class="i-right" v-if="r.lastAt">
-            <span class="who">{{r.lastAuthorName}}</span>
-            <span class="tme">{{ago(r.lastAt)}}</span>
-          </div>
-        </button>
-      </div>
-      <div class="list" v-else style="padding:0">
-        <div class="empty">
-          <b>没找到</b>
-          换个关键字试试，比如工程单号或电话号码。
-          <div style="margin-top:14px"><button class="linkbtn" @click="clearSearch">返回列表</button></div>
-        </div>
-      </div>
+    <!-- 切换看哪个业务员的报价（用户：从 Jessy 转到 Stella） -->
+    <div class="searchbar" v-if="tab==='quotes'">
+      <select class="field" style="flex:1 1 auto" v-model="quoteOwner" @change="switchOwner">
+        <option value="">我（{{meName}}）的报价</option>
+        <option v-for="u in userList" :key="u.username" :value="u.username">{{u.displayName}} 的报价</option>
+      </select>
     </div>
 
-    <div class="wrap" v-else>
-      <div class="list" v-if="curList.length">
+    <div class="wrap">
+      <div class="list" v-if="loadingQuotes" style="padding:0">
+        <div class="empty">
+          <b>正在读报价…</b>
+          第一次要把这批报价文件下载下来，会慢一点。<br>之后就快了（30 分钟内）。
+        </div>
+      </div>
+
+      <div class="list" v-else-if="curList.length">
         <button class="item" v-for="(r,i) in curList" :key="(r.projNo||'')+i"
                 :class="{fin:r.done}" @click="openRow(r)">
           <span class="dot" v-if="r.unread && !r.done"></span>
@@ -1087,7 +1076,7 @@ createApp({
       view: 'login', sheet: '',
       tab: 'following',
       inbox: { following: [], done: [] },
-      quotes: [], quotesLoaded: false,
+      quotes: [], quotesLoaded: false, quoteOwner: '', loadingQuotes: false,
       kw: '', searching: false, searchMode: false, searchResults: [],
       notifs: [], notifUnread: 0,
       order: null, timeline: [],
@@ -1119,10 +1108,16 @@ createApp({
       return Object.keys(u).map(k => Object.assign({ username: k }, u[k]))
         .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
     },
+    /* ⚠️ 搜索是**本地实时过滤** —— 用户要「填入关键字时列表自动筛选」，
+       不是点按钮去后端查。本地过滤 0 延迟，输入即筛。
+       ⚠️ _hit 必须在 methods 里 —— 放 computed 会被 Vue 当 getter，
+       this._hit(...) 就会报「not a function」并让整个模板崩掉。 */
     curList() {
-      if (this.tab === 'quotes') return this.quotes;
-      if (this.tab === 'done') return this.inbox.done;
-      return this.inbox.following;
+      const base = this.tab === 'quotes' ? this.quotes
+        : (this.tab === 'done' ? this.inbox.done : this.inbox.following);
+      const q = this.kw.trim().toLowerCase();
+      if (!q) return base;
+      return base.filter(r => this._hit(r, q));
     },
     tabTitle() {
       if (this.searchMode) return '搜索结果';
@@ -1287,16 +1282,33 @@ createApp({
     /** 待处理 = 报价系统里我建了、但还没跟进的报价（要读报价文件，慢，缓加载） */
     async loadQuotes(force) {
       if (this.quotesLoaded && !force) return;
-      this.busy = true;
+      this.busy = true; this.loadingQuotes = true;
       try {
-        const r = await api('getPendingQuotes', { username: this.me, role: this.myRole });
+        const r = await api('getPendingQuotes', {
+          username: this.me, role: this.myRole, owner: this.quoteOwner
+        });
         this.quotes = r.quotes || [];
         this.quotesLoaded = true;
       } catch (e) { this.say('读报价失败：' + e.message, 'err'); }
-      this.busy = false;
+      this.busy = false; this.loadingQuotes = false;
+    },
+    /** 切换看哪个业务员（用户：从 Jessy 转到 Stella） */
+    async switchOwner() {
+      this.quotesLoaded = false;
+      this.quotes = [];
+      await this.loadQuotes(true);
     },
 
     /* ---------- 搜索 ---------- */
+    /** 实时过滤用的命中判断（必须在 methods，写进 computed 会崩） */
+    _hit(r, q) {
+      const fields = [r.projNo, r.customerName, r.customerContact, r.salesName,
+                      r.lastAuthorName, r.assigneeName];
+      for (let i = 0; i < fields.length; i++) {
+        if (fields[i] && String(fields[i]).toLowerCase().indexOf(q) >= 0) return true;
+      }
+      return false;
+    },
     async doSearch() {
       const q = this.kw.trim();
       if (!q) { this.clearSearch(); return; }
