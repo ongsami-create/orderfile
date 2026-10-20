@@ -775,12 +775,25 @@ function mockApi(action, p) {  const users = {};
   }
   if (action === 'getInbox') {
     const now = Date.now(), H = 3600000;
-    return { ok: true, todoCount: 2, doneCount: 1, todo: [
-      { projNo: 'SSD09', customerName: 'RAY ONG', lastAt: new Date(now - 3 * 60000).toISOString(), lastAuthor: 'SSD', lastAuthorName: 'SAMI', lastType: '沟通', lastReplyChip: '已安排', unread: true, hasPhotos: true, lastPhotos: 3, hasDocs: true, lastDocs: 1, done: false },
-      { projNo: 'PSD39', customerName: 'SIEW HEONG', lastAt: new Date(now - 5 * H).toISOString(), lastAuthor: 'FSD', lastAuthorName: 'STELLA', lastType: '要求', lastReplyChip: '', unread: false, hasPhotos: false, lastPhotos: 0, hasDocs: false, lastDocs: 0, done: false }
-    ], done: [
-      { projNo: 'ASD07', customerName: 'LIM CARPENTER', lastAt: new Date(now - 26 * H).toISOString(), doneAt: new Date(now - 26 * H).toISOString(), lastAuthor: 'JIA', lastAuthorName: 'JIA', lastType: '验收', lastReplyChip: '已完工', unread: false, hasPhotos: true, lastPhotos: 4, hasDocs: false, lastDocs: 0, done: true }
-    ] };
+    // ⚠️ 必须按 username 过滤 + admin 看全部 —— 不然 mock 会掩盖
+    //    「换了人角色没重置」这类真 bug（2026-10-20 就被它骗过一次）
+    const all = [
+      { projNo: 'SSD09', customerName: 'RAY ONG', createdBy: 'SSD', assignee: 'SSD', lastAt: new Date(now - 3 * 60000).toISOString(), lastAuthor: 'SSD', lastType: '沟通', lastReplyChip: '已安排', unread: true, hasPhotos: true, lastPhotos: 3, hasDocs: true, lastDocs: 1, done: false },
+      { projNo: 'PSD39', customerName: 'SIEW HEONG', createdBy: 'PSD', assignee: 'PSD', lastAt: new Date(now - 5 * H).toISOString(), lastAuthor: 'PSD', lastType: '要求', lastReplyChip: '', unread: false, hasPhotos: false, lastPhotos: 0, hasDocs: false, lastDocs: 0, done: false },
+      { projNo: 'ASD07', customerName: 'LIM CARPENTER', createdBy: 'ASD', assignee: 'ASD', lastAt: new Date(now - 26 * H).toISOString(), doneAt: new Date(now - 26 * H).toISOString(), lastAuthor: 'JIA', lastType: '验收', lastReplyChip: '已完工', unread: false, hasPhotos: true, lastPhotos: 4, hasDocs: false, lastDocs: 0, done: true }
+    ];
+    const isAdmin = (p.role === 'admin');
+    const mine = all.filter(r => isAdmin || r.createdBy === p.username || r.assignee === p.username);
+    const DN = { SSD: 'SAMI', PSD: 'PEGGY', ASD: 'ANDREW', JIA: 'JIA', FSD: 'STELLA', admin: 'Administrator' };
+    const withNames = mine.map(r => Object.assign({}, r, {
+      lastAuthorName: DN[r.lastAuthor] || r.lastAuthor || '',
+      assigneeName: DN[r.assignee] || ''
+    }));
+    return {
+      ok: true,
+      todo: withNames.filter(r => !r.done), done: withNames.filter(r => r.done),
+      todoCount: withNames.filter(r => !r.done).length, doneCount: withNames.filter(r => r.done).length
+    };
   }
   if (action === 'getQuoteInfo') {
     return { ok: true, projNo: p.projNo, owner: p.username || 'SSD', quote: { customerName: 'RAY ONG', customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru', salesperson: 'SAMI', salespersonContact: '019-888 7766', total: 42149 } };
@@ -1003,7 +1016,7 @@ createApp({
         const last = localStorage.getItem('of_user');
         if (this.cfgOk && last && (r.users || {})[last]) {
           this.me = last;
-          if (this.myRoles.indexOf(this.myRole) < 0) this.myRole = this.myRoles[0];
+          this._syncRole_(last);
           this.view = 'home';
           await this.refreshInbox();
         }
@@ -1018,9 +1031,25 @@ createApp({
     async login(username) {
       this.me = username;
       localStorage.setItem('of_user', username);
-      if (this.myRoles.indexOf(this.myRole) < 0) this.myRole = this.myRoles[0];
+      // ⚠️ 不要用 this.myRoles（computed）来判断角色 ——
+      //    computed 依赖变更要等下一个 tick，这里读到的还是**登录前**的旧值，
+      //    结果就是换了人角色却没重置（2026-10-20 实测：STELLA 登录后看到 0 条）。
+      this._syncRole_(username);
       this.view = 'home';
       await this.refreshInbox();
+    },
+
+    /** 按名册给某人挑一个默认岗位 */
+    _syncRole_(username) {
+      const u = (this.cfg.users || {})[username] || {};
+      const roles = u.roles || ['sales'];
+      // 管理员默认用 admin 视角（能看到全部单），其他人用第一个角色。
+      // ⚠️ 之前写成「只在 myRole 不在 roles 里才改」→ STELLA 停在 sales，看不到自己的单。
+      const prefer = roles.indexOf('admin') >= 0 ? 'admin' : roles[0];
+      // 用户手动切过就尊重用户的选择
+      const saved = localStorage.getItem('of_role');
+      this.myRole = (saved && roles.indexOf(saved) >= 0) ? saved : prefer;
+      localStorage.setItem('of_role', this.myRole);
     },
 
     async logout() {
