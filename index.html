@@ -243,6 +243,48 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
   border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* ---------- 铃铛（右上角） ---------- */
+.bell{position:relative;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.bell.hot{color:var(--red)}
+.bell .badge{
+  position:absolute;top:0;right:-1px;min-width:17px;height:17px;padding:0 4px;
+  border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 0 2px rgba(242,242,247,.9);
+}
+
+/* ---------- 搜索框 ---------- */
+.searchbar{display:flex;gap:8px;margin:0 16px 12px}
+.searchbar input{
+  flex:1 1 auto;min-width:0;background:var(--card);border:1px solid var(--sep);
+  border-radius:10px;padding:10px 13px;font-size:15px;outline:0;
+}
+.searchbar input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(31,182,196,.12)}
+.searchbar button{
+  flex:0 0 auto;background:var(--card);border:1px solid var(--sep);border-radius:10px;
+  padding:0 15px;font-size:15px;font-weight:700;color:var(--brand);
+}
+
+/* ---------- 列表：三段式（左内容 / 右更新人） ---------- */
+.i-main{flex:1 1 auto;min-width:0}
+.i-l1{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.i-l1 .cphone{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.i-l2,.i-l3{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.i-l3 .tag{background:rgba(60,60,67,.08);color:var(--ink2);font-weight:500}
+.i-l2 .tag{background:rgba(31,182,196,.13);color:var(--brand-d)}
+.i-right{flex:0 0 auto;text-align:right;max-width:82px;padding-top:1px}
+.i-right .who{font-size:12px;font-weight:700;color:var(--ink2);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.i-right .tme{font-size:11px;color:var(--muted);display:block;margin-top:2px}
+
+/* ---------- 铃铛弹层里的消息 ---------- */
+.noti{padding:12px 15px;border-bottom:.5px solid var(--sep);display:flex;gap:9px;align-items:flex-start}
+.noti:last-child{border-bottom:0}
+.noti .nd{width:7px;height:7px;border-radius:50%;background:var(--brand);margin-top:6px;flex:0 0 auto}
+.noti.unread .nd{background:var(--red)}
+.noti .nb{flex:1 1 auto;min-width:0;font-size:14px;line-height:1.5}
+.noti .nb b{font-weight:700}
+.noti .nb .t{font-size:11.5px;color:var(--muted);display:block;margin-top:2px}
+
 /* ---------- 打印 ---------- */
 @media print{
   body{background:#fff}
@@ -312,6 +354,12 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
       </select>
       <span class="tb-role" v-else>{{roleLabel}}</span>
       <span class="tb-name">{{meName}}</span>
+      <button class="bell" :class="{hot: notifUnread>0}" @click="openBell" title="消息">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="badge" v-if="notifUnread>0">{{notifUnread>99?'99+':notifUnread}}</span>
+      </button>
       <button class="iconbtn" @click="sheet='settings'" v-if="isAdmin" title="设置">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
@@ -325,29 +373,74 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
       </button>
     </header>
 
-    <div class="bigt">{{tab==='todo' ? '待处理' : '已完成'}}</div>
-    <div class="subt">{{tab==='todo' ? '最新更新的在最上面 · 红点是没看过的' : '点进去还能看完整资料'}}</div>
+    <div class="bigt">{{tabTitle}}</div>
+    <div class="subt">{{tabSub}}</div>
 
-    <div class="seg">
-      <button :class="{on:tab==='todo'}" @click="tab='todo'">待处理<span class="n">{{inbox.todo.length}}</span></button>
-      <button :class="{on:tab==='done'}" @click="tab='done'">已完成<span class="n">{{inbox.done.length}}</span></button>
+    <div class="searchbar">
+      <input v-model="kw" @keyup.enter="doSearch" placeholder="搜工程单号 / 电话 / 客户名 / 人名"
+             autocapitalize="characters" autocorrect="off" spellcheck="false">
+      <button @click="doSearch" :disabled="searching">{{ searching ? '搜…' : '搜' }}</button>
     </div>
 
-    <div class="wrap">
-      <div class="list" v-if="curList.length">
-        <button class="item" v-for="r in curList" :key="r.projNo"
-                :class="{fin:r.done}" @click="openOrder(r.projNo)">
-          <span class="dot" v-if="r.unread && !r.done"></span>
-          <div class="row1">
-            <span class="pno">{{r.projNo}}</span>
-            <span class="cname">{{r.customerName || '（未填客户名）'}}</span>
-            <span class="who" v-if="r.lastAuthorName">{{r.lastAuthorName}}</span>
+    <div class="seg" v-if="!searchMode">
+      <button :class="{on:tab==='following'}" @click="switchTab('following')">跟进中<span class="n">{{inbox.following.length}}</span></button>
+      <button :class="{on:tab==='quotes'}" @click="switchTab('quotes')">待处理<span class="n">{{quotes.length}}</span></button>
+      <button :class="{on:tab==='done'}" @click="switchTab('done')">已完成<span class="n">{{inbox.done.length}}</span></button>
+    </div>
+
+    <div class="wrap" v-if="searchMode">
+      <div class="list" v-if="searchResults.length">
+        <button class="item" v-for="(r,i) in searchResults" :key="'s'+i"
+                :class="{fin:r.done}" @click="openRow(r)">
+          <span class="dot" v-if="r.unread"></span>
+          <div class="i-main">
+            <div class="i-l1">
+              <span class="pno">{{r.projNo}}</span>
+              <span class="cname">{{r.customerName || '（未填客户名）'}}</span>
+              <span class="cphone" v-if="r.customerContact">{{r.customerContact}}</span>
+            </div>
+            <div class="i-l2" v-if="profileChipsOf(r).length">
+              <span class="tag" v-for="c in profileChipsOf(r)" :key="c">{{c}}</span>
+            </div>
+            <div class="i-l3" v-if="flowChipsOf(r).length">
+              <span class="tag" v-for="c in flowChipsOf(r)" :key="c">{{c}}</span>
+            </div>
           </div>
-          <div class="row2">
-            <span class="tag" v-if="r.lastType">{{r.lastType}}</span>
-            <span class="tag reply" v-if="r.lastReplyChip">{{r.lastReplyChip}}</span>
-            <span class="tag att" v-if="r.lastDocs">📎 {{r.lastDocs}}</span>
-            <span class="tag att" v-if="r.lastPhotos">🖼 {{r.lastPhotos}}</span>
+          <div class="i-right" v-if="r.lastAt">
+            <span class="who">{{r.lastAuthorName}}</span>
+            <span class="tme">{{ago(r.lastAt)}}</span>
+          </div>
+        </button>
+      </div>
+      <div class="list" v-else style="padding:0">
+        <div class="empty">
+          <b>没找到</b>
+          换个关键字试试，比如工程单号或电话号码。
+          <div style="margin-top:14px"><button class="linkbtn" @click="clearSearch">返回列表</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap" v-else>
+      <div class="list" v-if="curList.length">
+        <button class="item" v-for="(r,i) in curList" :key="(r.projNo||'')+i"
+                :class="{fin:r.done}" @click="openRow(r)">
+          <span class="dot" v-if="r.unread && !r.done"></span>
+          <div class="i-main">
+            <div class="i-l1">
+              <span class="pno">{{r.projNo}}</span>
+              <span class="cname">{{r.customerName || '（未填客户名）'}}</span>
+              <span class="cphone" v-if="r.customerContact">{{r.customerContact}}</span>
+            </div>
+            <div class="i-l2" v-if="profileChipsOf(r).length">
+              <span class="tag" v-for="c in profileChipsOf(r)" :key="c">{{c}}</span>
+            </div>
+            <div class="i-l3" v-if="flowChipsOf(r).length">
+              <span class="tag" v-for="c in flowChipsOf(r)" :key="c">{{c}}</span>
+            </div>
+          </div>
+          <div class="i-right" v-if="r.lastAt">
+            <span class="who">{{r.lastAuthorName}}</span>
             <span class="tme">{{ago(r.lastAt)}}</span>
           </div>
         </button>
@@ -355,8 +448,8 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
 
       <div class="list" v-else style="padding:0">
         <div class="empty">
-          <b>{{tab==='todo' ? '暂时没有待处理' : '还没有完成的事'}}</b>
-          {{tab==='todo' ? '点右下角 ＋ 找一个工程单号，加第一条资料。' : '有人点「完成」之后会出现在这里。'}}
+          <b>{{emptyTitle}}</b>
+          {{emptyHint}}
         </div>
       </div>
     </div>
@@ -628,6 +721,36 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
           </div>
         </div>
 
+        <div class="card">
+          <div class="hd">客户画像 · 习惯与偏好</div>
+          <div class="chipwrap">
+            <span class="tag" v-for="(c,i) in cfg.chipSets.profileChips" :key="c">
+              {{c}}
+              <button style="margin-left:6px;color:var(--red);font-weight:700" @click="delProfileChip(i)">×</button>
+            </span>
+          </div>
+          <div style="padding:0 15px 13px;display:flex;gap:8px;align-items:center">
+            <input class="field" style="flex:1 1 auto;padding:10px 0;border-bottom:1px solid var(--sep)"
+                   v-model="draftProfileChip" maxlength="12" placeholder="最多 12 个字" @keyup.enter="addProfileChip">
+            <button class="linkbtn" style="flex:0 0 auto" @click="addProfileChip">加入</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">客户画像 · 怎么联系他方便</div>
+          <div class="chipwrap">
+            <span class="tag" v-for="(c,i) in cfg.chipSets.contactPrefs" :key="c">
+              {{c}}
+              <button style="margin-left:6px;color:var(--red);font-weight:700" @click="delContactPref(i)">×</button>
+            </span>
+          </div>
+          <div style="padding:0 15px 13px;display:flex;gap:8px;align-items:center">
+            <input class="field" style="flex:1 1 auto;padding:10px 0;border-bottom:1px solid var(--sep)"
+                   v-model="draftContactPref" maxlength="12" placeholder="最多 12 个字" @keyup.enter="addContactPref">
+            <button class="linkbtn" style="flex:0 0 auto" @click="addContactPref">加入</button>
+          </div>
+        </div>
+
         <div class="card" v-for="d in deptList" :key="d.key">
           <div class="hd">{{d.label}} · 类型 chips</div>
           <div class="chipwrap">
@@ -662,6 +785,32 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         <button class="btn" :disabled="busy" @click="saveChips">
           <span v-if="busy" class="spin"></span>保存
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 铃铛消息 ============ -->
+  <div class="mask" v-if="sheet==='bell'" @click.self="closeSheet">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <h2>消息</h2>
+        <button class="linkbtn off" @click="closeSheet">关闭</button>
+      </div>
+      <div class="sheet-bd">
+        <div class="card" style="margin-top:12px;padding:0">
+          <div v-if="!notifs.length" class="empty" style="padding:44px 20px">
+            暂时没有新消息
+          </div>
+          <div class="noti" v-for="(n,i) in notifs" :key="i" :class="{unread:n.isNew}" @click="openNoti(n)">
+            <span class="nd"></span>
+            <span class="nb">
+              <b>{{n.authorName}}</b> 在 <b>{{n.projNo}}</b>
+              <template v-if="n.assignToName"> 指定 <b>{{n.assignToName}}</b> 跟进</template>
+              <template v-else> 增加新的内容</template>
+              <span class="t">{{fmtTime(n.at)}}</span>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -759,7 +908,9 @@ function mockApi(action, p) {  const users = {};
       logistics: ['发货', '装柜', '抵达', '物流异常', '注意事项'],
       install: ['现场问题', '验收', '注意事项']
     },
-    replies: ['收到', '已安排', '明天再联系', '客户已改口', '待确认', '已完工', '客户不在', '要再量']
+    replies: ['收到', '已安排', '明天再联系', '客户已改口', '待确认', '已完工', '客户不在', '要再量'],
+    profileChips: ['洁癖', '不能抽烟', '有小孩', '有宠物', '价格敏感', '要求高', '怕油烟', '爱干净', '老人同住', '自己住', '怕打扰', '喜欢慢慢来', '时间紧张', '爱讨价还价', '认死理', '听设计师的', '要自己拍板'],
+    contactPrefs: ['微信', '电话', 'WhatsApp', '只能上午联系', '只能下午联系', '周末才能联系']
   };
   if (action === 'getConfig') {
     // ⚠️ 字段必须跟真后端 _getConfig_ 逐字段对齐，否则 mock 通过了真环境照样炸
@@ -781,8 +932,8 @@ function mockApi(action, p) {  const users = {};
     // ⚠️ 必须按 username 过滤 + admin 看全部 —— 不然 mock 会掩盖
     //    「换了人角色没重置」这类真 bug（2026-10-20 就被它骗过一次）
     const all = [
-      { projNo: 'SSD09', customerName: 'RAY ONG', createdBy: 'SSD', assignee: 'SSD', lastAt: new Date(now - 3 * 60000).toISOString(), lastAuthor: 'SSD', lastType: '沟通', lastReplyChip: '已安排', unread: true, hasPhotos: true, lastPhotos: 3, hasDocs: true, lastDocs: 1, done: false },
-      { projNo: 'PSD39', customerName: 'SIEW HEONG', createdBy: 'PSD', assignee: 'PSD', lastAt: new Date(now - 5 * H).toISOString(), lastAuthor: 'PSD', lastType: '要求', lastReplyChip: '', unread: false, hasPhotos: false, lastPhotos: 0, hasDocs: false, lastDocs: 0, done: false },
+      { projNo: 'SSD09', customerName: 'RAY ONG', customerContact: '012-345 6789', createdBy: 'SSD', assignee: 'SSD', lastAt: new Date(now - 3 * 60000).toISOString(), lastAuthor: 'SSD', lastType: '沟通', lastReplyChip: '已安排', unread: true, hasPhotos: true, lastPhotos: 3, hasDocs: true, lastDocs: 1, done: false, clientProfile: { chips: ['有小孩', '洁癖', '认死理'], contactPrefs: ['只能下午联系'] } },
+      { projNo: 'PSD39', customerName: 'SIEW HEONG', customerContact: '010-999 8888', createdBy: 'PSD', assignee: 'PSD', lastAt: new Date(now - 5 * H).toISOString(), lastAuthor: 'PSD', lastType: '要求', lastReplyChip: '', unread: false, hasPhotos: false, lastPhotos: 0, hasDocs: false, lastDocs: 0, done: false, clientProfile: null },
       { projNo: 'ASD07', customerName: 'LIM CARPENTER', createdBy: 'ASD', assignee: 'ASD', lastAt: new Date(now - 26 * H).toISOString(), doneAt: new Date(now - 26 * H).toISOString(), lastAuthor: 'JIA', lastType: '验收', lastReplyChip: '已完工', unread: false, hasPhotos: true, lastPhotos: 4, hasDocs: false, lastDocs: 0, done: true }
     ];
     const isAdmin = (p.role === 'admin');
@@ -794,9 +945,36 @@ function mockApi(action, p) {  const users = {};
     }));
     return {
       ok: true,
-      todo: withNames.filter(r => !r.done), done: withNames.filter(r => r.done),
-      todoCount: withNames.filter(r => !r.done).length, doneCount: withNames.filter(r => r.done).length
+      following: withNames.filter(r => !r.done), done: withNames.filter(r => r.done),
+      followingCount: withNames.filter(r => !r.done).length, doneCount: withNames.filter(r => r.done).length
     };
+  }
+  if (action === 'getPendingQuotes') {
+    const now = Date.now(), H = 3600000;
+    const quotes = [
+      { projNo: 'PSD33', customerName: 'CHIN HOCK', customerContact: '011-2222 3333', customerAddress: 'Johor Bahru', salesName: 'PEGGY', quoteTotal: 28800, clientProfile: { chips: ['有小孩'], contactPrefs: ['只能下午联系'] } },
+      { projNo: 'PSD01', customerName: 'LIM ENTERPRISE', customerContact: '012-888 7766', customerAddress: 'Pasir Gudang', salesName: 'PEGGY', quoteTotal: 45600, clientProfile: null },
+      { projNo: 'PSD08', customerName: 'TAN METAL', customerContact: '013-555 1212', customerAddress: 'Batu Pahat', salesName: 'PEGGY', quoteTotal: 12300, clientProfile: { chips: ['洁癖', '认死理'], contactPrefs: ['微信'] } }
+    ];
+    return { ok: true, quotes, count: quotes.length, owner: p.username };
+  }
+  if (action === 'notifications') {
+    const now = Date.now(), H = 3600000;
+    return { ok: true, unread: 2, lastReadAt: new Date(now - 3 * H).toISOString(), items: [
+      { at: new Date(now - 20 * 60000).toISOString(), projNo: 'SSD09', customerName: 'RAY ONG', author: 'JUN', authorName: 'JUN', type: '验收', assignTo: null, markDone: false },
+      { at: new Date(now - 90 * 60000).toISOString(), projNo: 'fsd17', customerName: 'WIEW LI WAN', author: 'FSD', authorName: 'STELLA', type: '沟通', assignTo: 'SSD', assignToName: 'SAMI', markDone: false },
+      { at: new Date(now - 5 * H).toISOString(), projNo: 'PSD39', customerName: 'SIEW HEONG', author: 'PSD', authorName: 'PEGGY', type: '要求', assignTo: null, markDone: false }
+    ] };
+  }
+  if (action === 'readNotifications') return { ok: true, at: new Date().toISOString() };
+  if (action === 'searchAll') {
+    const q = String(p.q || '').toLowerCase();
+    const all = [
+      { kind: 'quote', projNo: 'PSD33', customerName: 'CHIN HOCK', customerContact: '011-2222 3333', salesName: 'PEGGY', quoteTotal: 28800, clientProfile: { chips: ['有小孩'] }, done: false, lastAt: '' },
+      { kind: 'order', projNo: 'SSD09', customerName: 'RAY ONG', customerContact: '012-345 6789', salesName: 'SAMI', done: false, lastAt: new Date(Date.now() - 180000).toISOString(), lastAuthorName: 'SAMI', lastType: '沟通', lastReplyChip: '已安排', lastPhotos: 3, lastDocs: 1 }
+    ];
+    const hit = (o) => Object.keys(o).some(k => typeof o[k] === 'string' && o[k].toLowerCase().indexOf(q) >= 0);
+    return { ok: true, results: all.filter(hit), count: all.filter(hit).length };
   }
   if (action === 'getQuoteInfo') {
     return { ok: true, projNo: p.projNo, owner: p.username || 'SSD', quote: { customerName: 'RAY ONG', customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru', salesperson: 'SAMI', salespersonContact: '019-888 7766', total: 42149 } };
@@ -907,8 +1085,11 @@ createApp({
       cfg: { users: {}, roles: {}, chipSets: { types: {}, replies: [] } },
       me: '', myRole: 'sales',
       view: 'login', sheet: '',
-      tab: 'todo',
-      inbox: { todo: [], done: [] },
+      tab: 'following',
+      inbox: { following: [], done: [] },
+      quotes: [], quotesLoaded: false,
+      kw: '', searching: false, searchMode: false, searchResults: [],
+      notifs: [], notifUnread: 0,
       order: null, timeline: [],
       busy: false,
       toast: '', toastKind: '', toastTimer: null,
@@ -917,7 +1098,8 @@ createApp({
       form: { projNo: '', type: '', content: '', replyChip: '', photos: [], docs: [], dept: '', assignTo: '', done: false },
       newReply: false, draftReply: '',
       myReplies: [],
-      draftAdmin: '', addTypeFor: '', draftType: ''
+      draftAdmin: '', addTypeFor: '', draftType: '',
+      draftProfileChip: '', draftContactPref: ''
     };
   },
 
@@ -937,7 +1119,30 @@ createApp({
       return Object.keys(u).map(k => Object.assign({ username: k }, u[k]))
         .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
     },
-    curList() { return this.tab === 'todo' ? this.inbox.todo : this.inbox.done; },
+    curList() {
+      if (this.tab === 'quotes') return this.quotes;
+      if (this.tab === 'done') return this.inbox.done;
+      return this.inbox.following;
+    },
+    tabTitle() {
+      if (this.searchMode) return '搜索结果';
+      return this.tab === 'quotes' ? '待处理' : (this.tab === 'done' ? '已完成' : '跟进中');
+    },
+    tabSub() {
+      if (this.searchMode) return '共 ' + this.searchResults.length + ' 条';
+      if (this.tab === 'quotes') return '你在报价系统建了、还没开始跟进的单';
+      if (this.tab === 'done') return '点进去还能看完整资料';
+      return '最新更新的在最上面 · 红点是没看过的';
+    },
+    emptyTitle() {
+      if (this.tab === 'quotes') return '没有待跟进的报价';
+      return this.tab === 'done' ? '还没有完成的事' : '暂时没有在跟进的';
+    },
+    emptyHint() {
+      if (this.tab === 'quotes') return '你在报价系统建的单会出现在这里，加了资料就转到「跟进中」。';
+      if (this.tab === 'done') return '有人点「完成」之后会出现在这里。';
+      return '点右下角 ＋ 找一个工程单号，加第一条资料。';
+    },
     typeChips() { return this.typeChipsOf(this.myRole); },
     replies() {
       const base = ((this.cfg.chipSets || {}).replies || []).slice();
@@ -1066,9 +1271,111 @@ createApp({
       this.busy = true;
       try {
         const r = await api('getInbox', { username: this.me, role: this.myRole });
-        this.inbox = { todo: r.todo || [], done: r.done || [] };
+        this.inbox = { following: r.following || [], done: r.done || [] };
+        this.quotesLoaded = false;
       } catch (e) { this.say('拉列表失败：' + e.message, 'err'); }
       this.busy = false;
+      this.loadNotifs();
+    },
+
+    /* ---------- 三栏 Tab ---------- */
+    async switchTab(t) {
+      this.tab = t;
+      this.searchMode = false;
+      if (t === 'quotes') await this.loadQuotes();
+    },
+    /** 待处理 = 报价系统里我建了、但还没跟进的报价（要读报价文件，慢，缓加载） */
+    async loadQuotes(force) {
+      if (this.quotesLoaded && !force) return;
+      this.busy = true;
+      try {
+        const r = await api('getPendingQuotes', { username: this.me, role: this.myRole });
+        this.quotes = r.quotes || [];
+        this.quotesLoaded = true;
+      } catch (e) { this.say('读报价失败：' + e.message, 'err'); }
+      this.busy = false;
+    },
+
+    /* ---------- 搜索 ---------- */
+    async doSearch() {
+      const q = this.kw.trim();
+      if (!q) { this.clearSearch(); return; }
+      this.searching = true;
+      try {
+        const r = await api('searchAll', { q, username: this.me, role: this.myRole });
+        this.searchResults = r.results || [];
+        this.searchMode = true;
+      } catch (e) { this.say('搜索失败：' + e.message, 'err'); }
+      this.searching = false;
+    },
+    clearSearch() {
+      this.searchMode = false; this.searchResults = []; this.kw = '';
+    },
+
+    /* ---------- 列表行 ---------- */
+    async openRow(r) {
+      // 「待处理」里的报价还没建档 → 先建档再打开
+      if (this.tab === 'quotes' && !r.lastAt) {
+        this.busy = true;
+        try {
+          await api('getOrder', { projNo: r.projNo, username: this.me, role: this.myRole });
+          this.quotesLoaded = false;
+          await this.openOrder(r.projNo);
+          await this.loadQuotes(true);
+          await this.refreshInbox();
+        } catch (e) { this.say(e.message, 'err', 6000); }
+        this.busy = false;
+        return;
+      }
+      await this.openOrder(r.projNo);
+    },
+    /** 客户画像 chips（最多 6 个） */
+    profileChipsOf(r) {
+      const p = r && r.clientProfile;
+      if (!p) return [];
+      const out = [];
+      const push = (c) => { if (c && out.length < 6 && out.indexOf(c) < 0) out.push(c); };
+      (p.chips || []).forEach(push);
+      (p.contactPrefs || []).forEach(push);
+      return out;
+    },
+    /** 信息流 chips（最多 6 个：类型 / 快速回复 / 照片总数 / 文件总数） */
+    flowChipsOf(r) {
+      const out = [];
+      if (!r) return out;
+      if (r.lastType) out.push(r.lastType);
+      if (r.lastReplyChip) out.push(r.lastReplyChip);
+      if (r.lastPhotos) out.push('🖼 ' + r.lastPhotos);
+      if (r.lastDocs) out.push('📎 ' + r.lastDocs);
+      return out.slice(0, 6);
+    },
+
+    /* ---------- 铃铛 ---------- */
+    async loadNotifs() {
+      try {
+        const r = await api('notifications', { username: this.me });
+        const last = r.lastReadAt || '';
+        this.notifs = (r.items || []).map(x => Object.assign({}, x, {
+          isNew: !last || String(x.at) > String(last)
+        }));
+        this.notifUnread = r.unread || 0;
+      } catch (e) { /* 铃铛失败不影响主流程 */ }
+    },
+    async openBell() {
+      this.sheet = 'bell';
+      await this.loadNotifs();
+      try { await api('readNotifications', { username: this.me }); } catch (e) {}
+      this.notifUnread = 0;
+    },
+    openNoti(n) {
+      this.closeSheet();
+      this.openOrder(n.projNo);
+    },
+    fmtTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const p = (x) => (x < 10 ? '0' + x : '' + x);
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
     },
 
     /* ---------- 客户画像 ---------- */
@@ -1308,6 +1615,20 @@ ${rows}
     delType(role, t) {
       const arr = this.cfg.chipSets.types[role] || [];
       this.cfg.chipSets.types[role] = arr.filter(x => x !== t);
+    },
+    delProfileChip(i) { this.cfg.chipSets.profileChips.splice(i, 1); },
+    addProfileChip() {
+      const t = this.draftProfileChip.trim();
+      if (!t) return;
+      if (this.cfg.chipSets.profileChips.indexOf(t) < 0) this.cfg.chipSets.profileChips.push(t);
+      this.draftProfileChip = '';
+    },
+    delContactPref(i) { this.cfg.chipSets.contactPrefs.splice(i, 1); },
+    addContactPref() {
+      const t = this.draftContactPref.trim();
+      if (!t) return;
+      if (this.cfg.chipSets.contactPrefs.indexOf(t) < 0) this.cfg.chipSets.contactPrefs.push(t);
+      this.draftContactPref = '';
     },
     addType() {
       const t = this.draftType.trim();
