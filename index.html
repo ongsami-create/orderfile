@@ -9,35 +9,36 @@
 <link rel="manifest" href="manifest.webmanifest">
 <style>
 /* ============================================================
-   iOS 风格设计系统（2026-10-19 重做）
+   iOS 风格设计系统 + 四色 chip 体系（2026-10-26）
    ============================================================ */
 :root{
   --brand:#1FB6C4;      /* Squirrel 青 */
-  --brand-d:#15838E;
   --red:#E8232A;        /* Squirrel 红 */
-  --olive:#5A5340;      /* logo 里的橄榄绿 */
+  --olive:#5A5340;      /* logo 橄榄绿 */
   --bg:#F2F2F7;
   --card:#fff;
   --ink:#1C1C1E;
   --ink2:#48484A;
   --muted:#8A8A8E;
   --sep:rgba(60,60,67,.14);
-  --blue:#007AFF;
-  --green:#34C759;
-  --orange:#FF9500;
-  --danger:#FF3B30;
-  --r:12px;
-  --r2:10px;
+
+  /* 四色 chip 体系 —— 列表 / 时间轴 / 输入页共用同一套定义 */
+  --c-p:#D9762B;  --c-p-bg:#FCEDE0;   /* 粉橙 · 习惯与偏好 */
+  --c-c:#2E9E62;  --c-c-bg:#E3F5E9;   /* 粉绿 · 怎么联系他 */
+  --c-t:#2C63D8;  --c-t-bg:#E7EDFC;   /* 宝蓝 · 类型 */
+  --c-r:#D94F86;  --c-r-bg:#FBE6EE;   /* 粉红 · 快捷回复 */
+  --c-a:#7B4FC9;  --c-a-bg:#EFE7FA;   /* 提醒人（特殊） */
+  --c-g:#6B7280;  --c-g-bg:#EEF0F3;   /* 参与人员 / 附件 */
+
+  --r:12px; --r2:10px;
   --sh:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.05);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
-  background:var(--bg);color:var(--ink);
-  font-size:16px;line-height:1.5;
-  -webkit-font-smoothing:antialiased;
-  overscroll-behavior-y:none;
+  background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;overscroll-behavior-y:none;
 }
 #app{min-height:100%}
 button{font-family:inherit;font-size:inherit;border:0;background:none;color:inherit;cursor:pointer;padding:0}
@@ -48,8 +49,7 @@ input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
 .topbar{
   position:sticky;top:0;z-index:50;
   background:rgba(242,242,247,.86);
-  backdrop-filter:saturate(180%) blur(18px);
-  -webkit-backdrop-filter:saturate(180%) blur(18px);
+  backdrop-filter:saturate(180%) blur(18px);-webkit-backdrop-filter:saturate(180%) blur(18px);
   border-bottom:.5px solid var(--sep);
   padding:calc(env(safe-area-inset-top) + 9px) 14px 9px;
   display:flex;align-items:center;gap:9px;
@@ -60,200 +60,22 @@ input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
 .tb-role{
   appearance:none;-webkit-appearance:none;
   background:rgba(118,118,128,.13);border:0;border-radius:8px;
-  padding:6px 8px;font-size:13px;font-weight:600;color:var(--ink);
-  max-width:96px;
+  padding:6px 8px;font-size:13px;font-weight:600;color:var(--ink);max-width:96px;
 }
 .tb-name{font-size:14px;font-weight:700;color:var(--ink);white-space:nowrap}
-.iconbtn{
-  width:32px;height:32px;border-radius:8px;
-  display:flex;align-items:center;justify-content:center;
-  color:var(--brand);
-}
+.iconbtn{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--brand)}
 .iconbtn:active{background:rgba(118,118,128,.15)}
-.iconbtn.off{color:var(--muted)}
-
-/* ---------- 大标题 ---------- */
-.bigt{font-size:30px;font-weight:800;letter-spacing:-.7px;padding:20px 16px 4px}
-.subt{font-size:13.5px;color:var(--muted);padding:0 16px 12px}
-
-/* ---------- 分段控件 ---------- */
-.seg{display:flex;background:rgba(118,118,128,.12);border-radius:9px;padding:2px;margin:0 16px 12px}
-.seg button{flex:1;padding:7px 0;border-radius:7px;font-size:15px;font-weight:600;color:var(--ink)}
-.seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.seg .n{font-size:12px;font-weight:700;opacity:.55;margin-left:3px}
-
-/* ---------- 列表 ---------- */
-.list{background:var(--card);margin:0 16px;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
-.item{display:block;width:100%;text-align:left;padding:12px 15px 12px 22px;border-bottom:.5px solid var(--sep);position:relative}
-.item:last-child{border-bottom:0}
-.item:active{background:#F7F7F9}
-.item.fin{opacity:.46}
-.row1{display:flex;align-items:baseline;gap:7px}
-.pno{font-size:14.5px;font-weight:800;color:var(--brand);letter-spacing:-.2px;flex:0 0 auto}
-.cname{font-size:15px;font-weight:600;color:var(--ink);flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.who{font-size:12px;color:var(--muted);flex:0 0 auto;font-weight:500}
-.row2{display:flex;align-items:center;gap:5px;margin-top:6px;flex-wrap:wrap}
-.tme{font-size:11.5px;color:var(--muted);margin-left:auto;flex:0 0 auto}
-.dot{position:absolute;left:8px;top:17px;width:8px;height:8px;border-radius:50%;background:var(--red)}
-
-/* ---------- 小标签 ---------- */
-.tag{
-  display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;
-  font-size:12px;font-weight:600;background:rgba(31,182,196,.13);color:var(--brand-d);
-}
-.tag.reply{background:rgba(255,149,0,.14);color:#B26A00}
-.tag.att{background:rgba(60,60,67,.09);color:var(--ink2);font-weight:500}
-.empty{text-align:center;padding:56px 24px;color:var(--muted);font-size:14.5px;line-height:1.7}
-.empty b{display:block;font-size:17px;color:var(--ink2);margin-bottom:8px;font-weight:700}
-
-/* ---------- FAB ---------- */
-.fab{
-  position:fixed;right:calc(50% - min(320px,50vw) + 18px);
-  bottom:calc(26px + env(safe-area-inset-bottom));
-  width:58px;height:58px;border-radius:29px;
-  background:var(--brand);color:#fff;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 8px 22px rgba(31,182,196,.42);z-index:60;
-}
-.fab:active{transform:scale(.93)}
-
-/* ---------- 卡片 / 表单 ---------- */
-.card{background:var(--card);border-radius:var(--r);margin:0 16px 12px;box-shadow:var(--sh);overflow:hidden}
-.card .hd{
-  padding:11px 15px 5px;font-size:12px;font-weight:700;color:var(--muted);
-  letter-spacing:.4px;text-transform:uppercase;
-}
-.field{display:block;width:100%;border:0;border-bottom:.5px solid var(--sep);padding:12px 15px;font-size:16px;background:transparent}
-.field:focus{outline:0;background:#FAFAFC}
-textarea.field{resize:vertical;min-height:88px;line-height:1.55}
-.btn{
-  display:block;width:100%;padding:14px;border-radius:var(--r2);
-  background:var(--brand);color:#fff;font-size:16px;font-weight:700;text-align:center;
-}
-.btn:active{opacity:.82}
-.btn.ghost{background:var(--card);color:var(--brand)}
-.btn[disabled]{background:rgba(118,118,128,.18);color:var(--muted)}
-/* ⚠️ 上次隐形按钮的教训：父容器不能给 button 写 background，
-   否则「白底 + 白字」按钮就看不见了。这里统一用 class，不继承父样式。 */
-.chipwrap{display:flex;flex-wrap:wrap;gap:8px;padding:12px 15px}
-.chip{
-  padding:8px 14px;border-radius:999px;background:#fff;
-  border:1px solid rgba(60,60,67,.16);
-  font-size:14.5px;font-weight:600;color:var(--ink);
-}
-.chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
-.chip.mini{padding:6px 11px;font-size:13.5px}
-.chip.add{border-style:dashed;color:var(--muted)}
-
-/* ---------- Sheet（底部弹出） ---------- */
-.mask{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:80;display:flex;align-items:flex-end;justify-content:center}
-.sheet{
-  background:var(--bg);width:100%;max-width:640px;
-  border-radius:16px 16px 0 0;max-height:92vh;display:flex;flex-direction:column;
-  padding-bottom:env(safe-area-inset-bottom);
-  animation:up .26s cubic-bezier(.32,.72,0,1);
-}
-@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.sheet-hd{
-  padding:13px 16px 11px;border-bottom:.5px solid var(--sep);
-  display:flex;align-items:center;gap:10px;flex:0 0 auto;
-}
-.sheet-hd h2{margin:0;font-size:17px;font-weight:700;flex:1 1 auto}
-.sheet-bd{overflow:auto;-webkit-overflow-scrolling:touch;flex:1 1 auto}
-.sheet-ft{padding:12px 16px;border-top:.5px solid var(--sep);background:var(--card);flex:0 0 auto}
-.linkbtn{color:var(--brand);font-weight:600;font-size:15px;padding:4px 2px}
-.linkbtn.off{color:var(--muted)}
-
-/* ---------- 信息流 ---------- */
-.hero{padding:16px}
-.hero .no{font-size:13px;font-weight:800;color:var(--brand);letter-spacing:.3px}
-.hero .nm{font-size:26px;font-weight:800;letter-spacing:-.6px;margin-top:2px}
-.hero .st{display:inline-flex;align-items:center;margin-top:8px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700}
-.st.todo{background:rgba(255,149,0,.16);color:#B26A00}
-.st.done{background:rgba(52,199,89,.16);color:#1B7F3B}
-.kv{display:flex;gap:10px;padding:10px 15px;border-bottom:.5px solid var(--sep);font-size:15px}
-.kv:last-child{border-bottom:0}
-.kv .k{color:var(--muted);flex:0 0 72px;font-size:14px}
-.kv .v{flex:1 1 auto;font-weight:500;word-break:break-word}
-.kv .v .mono{font-variant-numeric:tabular-nums}
-
-/* ---------- 时间轴 ---------- */
-.tl{position:relative;padding:14px 15px 14px 40px}
-.tl::before{content:'';position:absolute;left:22px;top:20px;bottom:20px;width:2px;background:var(--sep)}
-.tli{position:relative;padding-bottom:20px}
-.tli:last-child{padding-bottom:2px}
-.tli::before{
-  content:'';position:absolute;left:-25px;top:4px;
-  width:13px;height:13px;border-radius:50%;
-  background:#fff;border:3px solid var(--brand);
-}
-.tli.mine::before{border-color:var(--red)}
-.tli-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.tli-h b{font-size:14.5px;font-weight:700}
-.tli-h .t{font-size:12px;color:var(--muted);margin-left:auto}
-.tli-c{margin-top:6px;font-size:15px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
-.tli-a{margin-top:7px;font-size:12.5px;color:var(--brand);font-weight:600}
-.tli-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
-.unread-div{display:flex;align-items:center;gap:9px;margin:4px 0 14px}
-.unread-div::before,.unread-div::after{content:'';flex:1 1 auto;height:1px;background:var(--red);opacity:.4}
-.unread-div span{font-size:11.5px;font-weight:700;color:var(--red);white-space:nowrap}
-.thumbs{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
-.thumbs img{width:74px;height:74px;object-fit:cover;border-radius:8px;background:#EFEFF4}
-
-/* ---------- 登录页 ---------- */
-.login{
-  min-height:100vh;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;padding:40px 20px calc(40px + env(safe-area-inset-bottom));
-}
-.lg{width:210px;max-width:64vw;height:auto}
-.lgword{text-align:center;margin-bottom:34px}
-.lgword h1{font-size:29px;font-weight:800;letter-spacing:-.8px;margin:18px 0 5px}
-.lgword p{margin:0;font-size:14px;color:var(--muted)}
-.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;width:100%;max-width:520px}
-.pcard{
-  background:var(--card);border-radius:var(--r);padding:15px 9px 12px;
-  text-align:center;box-shadow:var(--sh);
-}
-.pcard:active{transform:scale(.96)}
-.av{
-  width:44px;height:44px;border-radius:50%;margin:0 auto 8px;
-  background:var(--brand);color:#fff;
-  display:flex;align-items:center;justify-content:center;
-  font-size:18px;font-weight:800;
-}
-.pcard .nm{font-size:13.5px;font-weight:700;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pcard .rl{font-size:11px;color:var(--muted);display:block;margin-top:3px;line-height:1.35}
-.errcard{
-  background:var(--card);border-radius:var(--r);padding:22px 18px;text-align:center;
-  box-shadow:var(--sh);max-width:420px;width:100%;
-}
-.errcard p{margin:10px 0 0;font-size:13.5px;color:var(--muted);line-height:1.6}
-.errcard .btn{margin-top:16px;padding:11px}
-
-/* ---------- Toast ---------- */
-.toast{
-  position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(96px + env(safe-area-inset-bottom));z-index:99;
-  background:rgba(28,28,30,.94);color:#fff;
-  padding:11px 18px;border-radius:11px;font-size:14px;font-weight:600;
-  max-width:86vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.25);
-}
-.toast.err{background:rgba(217,58,58,.96)}
-.spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);
-  border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
-@keyframes sp{to{transform:rotate(360deg)}}
-
-/* ---------- 铃铛（右上角） ---------- */
 .bell{position:relative;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
 .bell.hot{color:var(--red)}
 .bell .badge{
-  position:absolute;top:0;right:-1px;min-width:17px;height:17px;padding:0 4px;
-  border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;
-  display:flex;align-items:center;justify-content:center;
+  position:absolute;top:0;right:-1px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
+  background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;
   box-shadow:0 0 0 2px rgba(242,242,247,.9);
 }
 
-/* ---------- 搜索框 ---------- */
+/* ---------- 大标题 / 搜索 / Tab ---------- */
+.bigt{font-size:30px;font-weight:800;letter-spacing:-.7px;padding:20px 16px 4px}
+.subt{font-size:13.5px;color:var(--muted);padding:0 16px 12px}
 .searchbar{display:flex;gap:8px;margin:0 16px 12px}
 .searchbar input{
   flex:1 1 auto;min-width:0;background:var(--card);border:1px solid var(--sep);
@@ -264,26 +86,147 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
   flex:0 0 auto;background:var(--card);border:1px solid var(--sep);border-radius:10px;
   padding:0 15px;font-size:15px;font-weight:700;color:var(--brand);
 }
+.seg{display:flex;background:rgba(118,118,128,.12);border-radius:9px;padding:2px;margin:0 16px 12px}
+.seg button{flex:1;padding:7px 0;border-radius:7px;font-size:15px;font-weight:600;color:var(--ink)}
+.seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.seg .n{font-size:12px;font-weight:700;opacity:.55;margin-left:3px}
 
-/* ---------- 列表：三段式（左内容 / 右更新人） ---------- */
-/* ⚠️ 必须是 flex —— 否则 .i-main / .i-right 的 flex 样式全部失效，
-   更新人不会跑到最右侧，整行是散的（2026-10-20 用户反馈「用户名字和更新时间不在最右侧」） */
+/* ---------- 列表 ---------- */
+.list{background:var(--card);margin:0 16px;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
 .item{
   display:flex;align-items:flex-start;gap:10px;
   width:100%;text-align:left;padding:12px 15px 12px 22px;
   border-bottom:.5px solid var(--sep);position:relative;
 }
+.item:last-child{border-bottom:0}
+.item:active{background:#F7F7F9}
+.item.fin{opacity:.46}
 .i-main{flex:1 1 auto;min-width:0}
 .i-l1{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
-.i-l1 .cphone{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-.i-l2,.i-l3{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
-.i-l3 .tag{background:rgba(60,60,67,.08);color:var(--ink2);font-weight:500}
-.i-l2 .tag{background:rgba(31,182,196,.13);color:var(--brand-d)}
+.i-l1 .pno{font-size:14.5px;font-weight:800;color:var(--brand);letter-spacing:-.2px;flex:0 0 auto}
+.i-l1 .cname{font-size:15px;font-weight:600;color:var(--ink);flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.i-l1 .cphone{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto}
+.i-l2,.i-l3,.i-l4{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.i-l4{margin-top:4px}
 .i-right{flex:0 0 auto;text-align:right;max-width:82px;padding-top:1px}
 .i-right .who{font-size:12px;font-weight:700;color:var(--ink2);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .i-right .tme{font-size:11px;color:var(--muted);display:block;margin-top:2px}
+.dot{position:absolute;left:8px;top:17px;width:8px;height:8px;border-radius:50%;background:var(--red)}
 
-/* ---------- 铃铛弹层里的消息 ---------- */
+/* ---------- chip ---------- */
+.tag{
+  display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;
+  font-size:12px;font-weight:600;line-height:1.5;white-space:nowrap;
+}
+.tag.p{color:var(--c-p);background:var(--c-p-bg)}   /* 习惯与偏好 */
+.tag.c{color:var(--c-c);background:var(--c-c-bg)}   /* 怎么联系他 */
+.tag.t{color:var(--c-t);background:var(--c-t-bg)}   /* 类型 */
+.tag.r{color:var(--c-r);background:var(--c-r-bg)}   /* 快捷回复 */
+.tag.a{color:var(--c-a);background:var(--c-a-bg)}   /* 提醒人 */
+.tag.g{color:var(--c-g);background:var(--c-g-bg)}   /* 参与 / 附件 */
+.chip{
+  display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;
+  background:#fff;border:1px solid rgba(60,60,67,.16);font-size:14.5px;font-weight:600;color:var(--ink);
+}
+.chip.on{color:#fff;border-color:transparent}
+.chip.on.p{background:var(--c-p)}
+.chip.on.c{background:var(--c-c)}
+.chip.on.t{background:var(--c-t)}
+.chip.on.r{background:var(--c-r)}
+.chip.mini{padding:6px 11px;font-size:13.5px}
+.chip.add{border-style:dashed;color:var(--muted)}
+.empty{text-align:center;padding:56px 24px;color:var(--muted);font-size:14.5px;line-height:1.7}
+.empty b{display:block;font-size:17px;color:var(--ink2);margin-bottom:8px;font-weight:700}
+
+/* ---------- FAB ---------- */
+.fab{
+  position:fixed;right:calc(50% - min(320px,50vw) + 18px);
+  bottom:calc(26px + env(safe-area-inset-bottom));
+  width:58px;height:58px;border-radius:29px;background:var(--brand);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 22px rgba(31,182,196,.42);z-index:60;
+}
+.fab:active{transform:scale(.93)}
+
+/* ---------- 卡片 / 表单 ---------- */
+.card{background:var(--card);border-radius:var(--r);margin:0 16px 12px;box-shadow:var(--sh);overflow:hidden}
+.card .hd{
+  padding:11px 15px 5px;font-size:12px;font-weight:700;color:var(--muted);
+  letter-spacing:.4px;text-transform:uppercase;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card .hd .linkbtn{text-transform:none;letter-spacing:0;font-size:12.5px}
+.field{display:block;width:100%;border:0;border-bottom:.5px solid var(--sep);padding:12px 15px;font-size:16px;background:transparent}
+.field:focus{outline:0;background:#FAFAFC}
+textarea.field{resize:vertical;min-height:78px;line-height:1.55}
+.btn{display:block;width:100%;padding:14px;border-radius:var(--r2);background:var(--brand);color:#fff;font-size:16px;font-weight:700;text-align:center}
+.btn:active{opacity:.82}
+.btn.ghost{background:var(--card);color:var(--brand)}
+.btn[disabled]{background:rgba(118,118,128,.18);color:var(--muted)}
+.chipwrap{display:flex;flex-wrap:wrap;gap:8px;padding:12px 15px}
+.btnrow{display:flex;gap:8px}
+.btnrow .btn{flex:1 1 0}
+.linkbtn{color:var(--brand);font-weight:600;font-size:15px;padding:4px 2px}
+.linkbtn.off{color:var(--muted)}
+.hint{font-size:12px;color:var(--muted);line-height:1.55;padding:0 15px 13px;margin:0}
+.note{padding:0 15px 14px;font-size:14px;line-height:1.65;color:var(--ink2)}
+
+/* ---------- Sheet ---------- */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:80;display:flex;align-items:flex-end;justify-content:center}
+.sheet{
+  background:var(--bg);width:100%;max-width:640px;border-radius:16px 16px 0 0;
+  max-height:92vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom);
+  animation:up .26s cubic-bezier(.32,.72,0,1);
+}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet-hd{padding:13px 16px 11px;border-bottom:.5px solid var(--sep);display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.sheet-hd h2{margin:0;font-size:17px;font-weight:700;flex:1 1 auto;text-align:center}
+.sheet-bd{overflow:auto;-webkit-overflow-scrolling:touch;flex:1 1 auto}
+.sheet-ft{padding:12px 16px;border-top:.5px solid var(--sep);background:var(--card);flex:0 0 auto}
+
+/* ---------- 信息流 / 时间轴 ---------- */
+.hero{padding:16px}
+.hero .no{font-size:13px;font-weight:800;color:var(--brand);letter-spacing:.3px}
+.hero .nm{font-size:26px;font-weight:800;letter-spacing:-.6px;margin-top:2px}
+.hero .st{display:inline-flex;align-items:center;margin-top:8px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700}
+.st.todo{background:rgba(255,149,0,.16);color:#B26A00}
+.st.done{background:rgba(52,199,89,.16);color:#1B7F3B}
+.kv{display:flex;gap:10px;padding:10px 15px;border-bottom:.5px solid var(--sep);font-size:15px}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--muted);flex:0 0 72px;font-size:14px}
+.kv .v{flex:1 1 auto;font-weight:500;word-break:break-word}
+.tl{position:relative;padding:14px 15px 14px 40px}
+.tl::before{content:'';position:absolute;left:22px;top:20px;bottom:20px;width:2px;background:var(--sep)}
+.tli{position:relative;padding-bottom:20px}
+.tli:last-child{padding-bottom:2px}
+.tli::before{content:'';position:absolute;left:-25px;top:4px;width:13px;height:13px;border-radius:50%;background:#fff;border:3px solid var(--brand)}
+.tli.mine::before{border-color:var(--red)}
+.tli-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.tli-h b{font-size:14.5px;font-weight:700}
+.tli-h .t{font-size:12px;color:var(--muted);margin-left:auto}
+.tli-c{margin-top:6px;font-size:15px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.tli-a{margin-top:7px;font-size:12.5px;color:var(--brand);font-weight:600}
+.tli-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.thumbs{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.thumbs img{width:74px;height:74px;object-fit:cover;border-radius:8px;background:#EFEFF4}
+.unread-div{display:flex;align-items:center;gap:9px;margin:4px 0 14px}
+.unread-div::before,.unread-div::after{content:'';flex:1 1 auto;height:1px;background:var(--red);opacity:.4}
+.unread-div span{font-size:11.5px;font-weight:700;color:var(--red);white-space:nowrap}
+
+/* 待办项（打勾框） */
+.todos{list-style:none;margin:8px 0 0;padding:0}
+.todos li{display:flex;align-items:flex-start;gap:9px;padding:6px 0;font-size:14.5px;line-height:1.5;cursor:pointer}
+.todos li .box{
+  width:19px;height:19px;flex:0 0 auto;margin-top:1px;border-radius:6px;
+  border:1.8px solid rgba(60,60,67,.3);background:#fff;display:flex;align-items:center;justify-content:center;
+}
+.todos li.done .box{background:var(--brand);border-color:var(--brand)}
+.todos li.done .box::after{content:'';width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.todos li.done span{color:var(--muted);text-decoration:line-through}
+.todoInput{width:100%;border:0;border-bottom:.5px solid var(--sep);padding:9px 0;font-size:15px;background:transparent}
+.todoInput:focus{outline:0}
+
+/* ---------- 铃铛 ---------- */
 .noti{padding:12px 15px;border-bottom:.5px solid var(--sep);display:flex;gap:9px;align-items:flex-start}
 .noti:last-child{border-bottom:0}
 .noti .nd{width:7px;height:7px;border-radius:50%;background:var(--brand);margin-top:6px;flex:0 0 auto}
@@ -291,6 +234,32 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
 .noti .nb{flex:1 1 auto;min-width:0;font-size:14px;line-height:1.5}
 .noti .nb b{font-weight:700}
 .noti .nb .t{font-size:11.5px;color:var(--muted);display:block;margin-top:2px}
+
+/* ---------- 登录页 ---------- */
+.login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px calc(40px + env(safe-area-inset-bottom))}
+.lg{width:210px;max-width:64vw;height:auto}
+.lgword{text-align:center;margin-bottom:34px}
+.lgword h1{font-size:29px;font-weight:800;letter-spacing:-.8px;margin:18px 0 5px}
+.lgword p{margin:0;font-size:14px;color:var(--muted)}
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;width:100%;max-width:520px}
+.pcard{background:var(--card);border-radius:var(--r);padding:15px 9px 12px;text-align:center;box-shadow:var(--sh)}
+.pcard:active{transform:scale(.96)}
+.av{width:44px;height:44px;border-radius:50%;margin:0 auto 8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800}
+.pcard .nm{font-size:13.5px;font-weight:700;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard .rl{font-size:11px;color:var(--muted);display:block;margin-top:3px;line-height:1.35}
+.errcard{background:var(--card);border-radius:var(--r);padding:22px 18px;text-align:center;box-shadow:var(--sh);max-width:420px;width:100%}
+.errcard p{margin:10px 0 0;font-size:13.5px;color:var(--muted);line-height:1.6}
+.errcard .btn{margin-top:16px;padding:11px}
+
+/* ---------- Toast ---------- */
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));z-index:99;
+  background:rgba(28,28,30,.94);color:#fff;padding:11px 18px;border-radius:11px;font-size:14px;font-weight:600;
+  max-width:86vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.25);
+}
+.toast.err{background:rgba(217,58,58,.96)}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
 
 /* ---------- 打印 ---------- */
 @media print{
@@ -311,15 +280,11 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
   <!-- ============ 登录 ============ -->
   <div v-if="view==='login'" class="login">
     <div class="lgword">
-      <img class="lg" :src="logo" @error="logoFail=true" alt="Squirrel Care"
-           v-if="!logoFail">
-      <div v-else style="font-size:24px;font-weight:800;color:var(--olive);letter-spacing:-.5px">
-        Squirrel <span style="color:var(--red)">Care</span>
-      </div>
+      <img class="lg" :src="logo" @error="logoFail=true" alt="Squirrel Care" v-if="!logoFail">
+      <div v-else style="font-size:24px;font-weight:800;color:var(--olive);letter-spacing:-.5px">Squirrel <span style="color:var(--red)">Care</span></div>
       <h1>OrderFile</h1>
       <p>客户订单信息流 · 交接不断，信息不丢</p>
     </div>
-
     <div class="people" v-if="cfgOk">
       <button class="pcard" v-for="u in userList" :key="u.username" @click="login(u.username)">
         <span class="av">{{initials(u.displayName)}}</span>
@@ -327,20 +292,13 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         <span class="rl">{{roleList(u)}}</span>
       </button>
     </div>
-
-    <!-- ⚠️ 这里不能套 .chip / .btn 之类会写 background 的容器，
-         上次就是按钮被父级 background 盖成白底白字 -->
     <div class="errcard" v-else>
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
-           :stroke="loading ? 'var(--brand)' : (cfgSlow ? 'var(--orange)' : 'var(--danger)')"
-           stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" :stroke="loading ? 'var(--brand)' : (cfgSlow ? 'var(--orange,#c8811f)' : 'var(--danger,#d93a3a)')" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <p style="font-size:16px;font-weight:700;color:var(--ink);margin-top:10px">
         {{ loading ? '正在连接…' : (cfgSlow ? '服务器响应慢' : '连不上服务器') }}
       </p>
-      <!-- ⚠️ 还在连的时候别说「连不上」—— 名册重建可能要十几秒，
-           那时候用户看到的应该是「等一下」，不是「坏了」 -->
       <p v-if="loading">正在读取人员名册，第一次会慢一点。</p>
       <p v-else-if="cfgError">{{cfgError}}</p>
       <p v-else>请检查手机有没有网。</p>
@@ -367,7 +325,7 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         </svg>
         <span class="badge" v-if="notifUnread>0">{{notifUnread>99?'99+':notifUnread}}</span>
       </button>
-      <button class="iconbtn" @click="sheet='settings'" v-if="isAdmin" title="设置">
+      <button class="iconbtn" @click="openSheet('settings')" v-if="isAdmin" title="设置">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -395,7 +353,6 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
       <button :class="{on:tab==='done'}" @click="switchTab('done')">已完成<span class="n">{{inbox.done.length}}</span></button>
     </div>
 
-    <!-- 切换看哪个业务员的报价（用户：从 Jessy 转到 Stella） -->
     <div class="searchbar" v-if="tab==='quotes'">
       <select class="field" style="flex:1 1 auto" v-model="quoteOwner" @change="switchOwner">
         <option value="">我（{{meName}}）的报价</option>
@@ -405,10 +362,7 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
 
     <div class="wrap">
       <div class="list" v-if="loadingQuotes" style="padding:0">
-        <div class="empty">
-          <b>正在读报价…</b>
-          第一次要把这批报价文件下载下来，会慢一点。<br>之后就快了（30 分钟内）。
-        </div>
+        <div class="empty"><b>正在读报价…</b>第一次要把这批报价文件下载下来，会慢一点。<br>之后就快了。</div>
       </div>
 
       <div class="list" v-else-if="curList.length">
@@ -421,11 +375,19 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
               <span class="cname">{{r.customerName || '（未填客户名）'}}</span>
               <span class="cphone" v-if="r.customerContact">{{r.customerContact}}</span>
             </div>
-            <div class="i-l2" v-if="profileChipsOf(r).length">
-              <span class="tag" v-for="c in profileChipsOf(r)" :key="c">{{c}}</span>
+            <div class="i-l2" v-if="habitChips(r).length || contactChips(r).length">
+              <span class="tag p" v-for="c in habitChips(r)" :key="'h'+c">{{c}}</span>
+              <span class="tag c" v-for="c in contactChips(r)" :key="'c'+c">{{c}}</span>
             </div>
-            <div class="i-l3" v-if="flowChipsOf(r).length">
-              <span class="tag" v-for="c in flowChipsOf(r)" :key="c">{{c}}</span>
+            <div class="i-l3">
+              <span class="tag t" v-if="r.lastType">{{r.lastType}}</span>
+              <span class="tag r" v-for="c in (r.lastReplyChips||[])" :key="'r'+c">{{c}}</span>
+              <span class="tag g" v-if="r.hasPhotos">🖼 {{r.lastPhotos}}</span>
+              <span class="tag g" v-if="r.hasDocs">📎 {{r.lastDocs}}</span>
+            </div>
+            <div class="i-l4" v-if="r.assigneeName || (r.participantNames||[]).length">
+              <span class="tag a" v-if="r.assigneeName">🔔 {{r.assigneeName}}</span>
+              <span class="tag g" v-for="n in (r.participantNames||[])" :key="'p'+n">👥 {{n}}</span>
             </div>
           </div>
           <div class="i-right" v-if="r.lastAt">
@@ -436,21 +398,18 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
       </div>
 
       <div class="list" v-else style="padding:0">
-        <div class="empty">
-          <b>{{emptyTitle}}</b>
-          {{emptyHint}}
-        </div>
+        <div class="empty"><b>{{emptyTitle}}</b>{{emptyHint}}</div>
       </div>
     </div>
 
-    <button class="fab" @click="openSearch" aria-label="新增">
+    <button class="fab" @click="openNewOrder" aria-label="新增">
       <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
     </button>
   </div>
 
-  <!-- ============ 搜索 / 新增 ============ -->
+  <!-- ============ 搜索 / 新增（报价） ============ -->
   <div class="mask" v-if="sheet==='search'" @click.self="closeSheet">
     <div class="sheet">
       <div class="sheet-hd">
@@ -462,41 +421,31 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
           <div class="hd">1 · 谁的报价</div>
           <div class="chipwrap">
             <button class="chip mini" v-for="d in deptList" :key="d.key"
-                    :class="{on:search.dept===d.key}" @click="search.dept=d.key;search.owner=''">
-              {{d.label}}
-            </button>
+                    :class="{on:search.dept===d.key}" @click="search.dept=d.key;search.owner=''">{{d.label}}</button>
           </div>
           <select class="field" v-model="search.owner">
             <option value="">全部业务员</option>
-            <option v-for="u in usersOfDept(search.dept)" :key="u.username" :value="u.username">
-              {{u.displayName}}
-            </option>
+            <option v-for="u in usersOfDept(search.dept)" :key="u.username" :value="u.username">{{u.displayName}}</option>
           </select>
         </div>
-
         <div class="card">
           <div class="hd">2 · 工程单号</div>
-          <input class="field" v-model="search.projNo" placeholder="例如 SSD09"
+          <input class="field" v-model="search.projNo" placeholder="例如 PSD33"
                  @keyup.enter="doSearch" autocapitalize="characters" autocorrect="off" spellcheck="false">
         </div>
-
         <div class="card" v-if="search.msg" :style="{padding:'14px 15px'}">
-          <div style="font-size:14px" :style="{color: search.ok ? 'var(--green)' : 'var(--danger)'}">{{search.msg}}</div>
+          <div style="font-size:14px" :style="{color: search.ok ? 'var(--green,#2f9e4f)' : 'var(--danger,#d93a3a)'}">{{search.msg}}</div>
           <div v-if="search.found" style="margin-top:10px;font-size:15px;font-weight:700">{{search.found.customerName}}</div>
           <div v-if="search.found" style="margin-top:4px;font-size:12.5px;color:var(--muted)">
             {{search.found.customerContact || '没留电话'}} · {{search.found.salesperson || ''}}
           </div>
         </div>
-
         <div class="card" v-if="search.found">
           <div class="hd">3 · 顺手记下客户习惯（可跳过）</div>
           <div class="chipwrap">
-            <button class="chip mini" v-for="c in profileChipOptions" :key="c"
-                    :class="{on: search.chips.indexOf(c)>=0}" @click="toggleSearchChip(c)">{{c}}</button>
+            <button class="chip mini" v-for="c in profileChipOptions" :key="'ph'+c"
+                    :class="{on:search.chips.indexOf(c)>=0, p:true}" @click="toggleIn(search.chips,c)">{{c}}</button>
           </div>
-          <p style="margin:0;padding:0 15px 13px;font-size:12px;color:var(--muted);line-height:1.55">
-            建档之后也能改，在订单里的「客户画像 → 编辑」。
-          </p>
         </div>
       </div>
       <div class="sheet-ft">
@@ -514,7 +463,7 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
   <div class="mask" v-if="sheet==='order'" @click.self="closeSheet">
     <div class="sheet">
       <div class="sheet-hd noprint">
-        <button class="linkbtn" @click="closeSheet">‹ 返回</button>
+        <button class="linkbtn" @click="sheet='';prevSheet=''">‹ 返回</button>
         <h2 style="text-align:center">{{order?order.projNo:''}}</h2>
         <button class="linkbtn" @click="printFlow">打印</button>
       </div>
@@ -532,24 +481,27 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         </div>
 
         <div class="card">
-          <div class="kv"><span class="k">电话</span><span class="v mono">{{order.customerContact || '—'}}</span></div>
+          <div class="kv"><span class="k">电话</span><span class="v">{{order.customerContact || '—'}}</span></div>
           <div class="kv"><span class="k">地址</span><span class="v">{{order.customerAddress || '—'}}</span></div>
           <div class="kv"><span class="k">业务员</span><span class="v">{{order.salesName || '—'}}</span></div>
-          <div class="kv"><span class="k">业务员电话</span><span class="v mono">{{order.salesPhone || '—'}}</span></div>
-          <div class="kv" v-if="order.assignee"><span class="k">跟进</span><span class="v">{{nameOf(order.assignee)}}</span></div>
-          <div class="kv" v-if="order.quoteTotal"><span class="k">金额</span><span class="v mono">RM {{money(order.quoteTotal)}}</span></div>
+          <div class="kv"><span class="k">业务员电话</span><span class="v">{{order.salesPhone || '—'}}</span></div>
+          <div class="kv" v-if="(order.participants||[]).length"><span class="k">参与</span><span class="v">{{namesOf(order.participants).join('、')}}</span></div>
         </div>
 
         <div class="card">
-          <div class="hd" style="display:flex;align-items:center;justify-content:space-between;padding-bottom:0">
+          <div class="hd" style="padding-bottom:0">
             <span>客户画像</span>
-            <button class="linkbtn" style="font-size:13px;padding:2px 0" @click="openProfile">编辑</button>
+            <button class="linkbtn" @click="openProfile">编辑</button>
           </div>
-          <div class="chipwrap" style="padding-top:2px" v-if="profileChips.length">
-            <span class="tag" v-for="c in profileChips" :key="c">{{c}}</span>
+          <div class="chipwrap" style="padding-top:4px" v-if="orderHabits.length || orderContacts.length">
+            <span class="tag p" v-for="c in orderHabits" :key="'oh'+c">{{c}}</span>
+            <span class="tag c" v-for="c in orderContacts" :key="'oc'+c">{{c}}</span>
           </div>
-          <div class="empty" style="padding:16px 0 18px;font-size:13.5px;line-height:1.6" v-else>
-            还没记画像。<br>点「编辑」把这个客户的习惯写下来，后勤和安装的人就看得懂了。
+          <div class="empty" style="padding:12px 0 16px;font-size:13.5px" v-else>
+            还没记画像。点「编辑」把这个客户的习惯写下来。
+          </div>
+          <div class="note" v-if="order.profile && order.profile.note">
+            <b style="color:var(--ink)">补充说明：</b>{{order.profile.note}}
           </div>
         </div>
 
@@ -561,13 +513,21 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
               <div class="tli" :class="{mine: ev.author===me}">
                 <div class="tli-h">
                   <b>{{nameOf(ev.author)}}</b>
-                  <span class="tag" v-if="ev.type">{{ev.type}}</span>
-                  <span class="tag reply" v-if="ev.replyChip">{{ev.replyChip}}</span>
+                  <span class="tag t" v-if="ev.type">{{ev.type}}</span>
+                  <span class="tag r" v-for="c in (ev.replyChips||[])" :key="'r'+c">{{c}}</span>
                   <span class="t">{{ago(ev.at)}}</span>
                 </div>
                 <div class="tli-c" v-if="ev.content">{{ev.content}}</div>
-                <div class="tli-a" v-if="ev.assignTo">→ 已交给 {{nameOf(ev.assignTo)}}</div>
-                <div class="tli-a" v-else-if="ev.markDone">→ 已标记完成</div>
+                <ul class="todos" v-if="ev.todos && ev.todos.length">
+                  <li v-for="t in ev.todos" :key="t.id" :class="{done: todoDone(t.id)}" @click="toggleTodo(t.id)">
+                    <span class="box"></span><span>{{t.text}}</span>
+                  </li>
+                </ul>
+                <div class="tli-chips" v-if="ev.participants && ev.participants.length">
+                  <span class="tag g" v-for="n in namesOf(ev.participants)" :key="'pg'+n">👥 {{n}}</span>
+                </div>
+                <div class="tli-a" v-if="ev.assignTo">🔔 提醒 {{nameOf(ev.assignTo)}} 跟进</div>
+                <div class="tli-a" v-if="ev.markDone">✓ 已标记完成</div>
                 <div class="thumbs" v-if="ev.photos && ev.photos.length">
                   <a v-for="p in ev.photos" :key="p.url" :href="p.url" target="_blank" rel="noopener">
                     <img :src="p.url" :alt="p.name" loading="lazy">
@@ -575,19 +535,19 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
                 </div>
                 <div class="tli-chips" v-if="ev.docs && ev.docs.length">
                   <a v-for="d in ev.docs" :key="d.url" :href="d.url" target="_blank" rel="noopener">
-                    <span class="tag att">📎 {{d.name}}</span>
+                    <span class="tag g">📎 {{d.name}}</span>
                   </a>
                 </div>
               </div>
             </template>
-            <div class="empty" v-if="!order.events.length" style="padding:28px 0">
+            <div class="empty" style="padding:28px 0" v-if="!order.events.length">
               还没有任何记录。点下面「添加信息」写下第一条。
             </div>
           </div>
         </div>
       </div>
       <div class="sheet-ft noprint">
-        <button class="btn" :disabled="busy" @click="openCompose">添加信息</button>
+        <button class="btn" :disabled="busy" @click="openCompose(order?order.projNo:'')">添加信息</button>
       </div>
     </div>
   </div>
@@ -604,50 +564,63 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         <div class="card" style="margin-top:12px">
           <div class="hd">类型</div>
           <div class="chipwrap">
-            <button class="chip mini" v-for="t in typeChips" :key="t"
+            <button class="chip mini t" v-for="t in typeChips" :key="t"
                     :class="{on:form.type===t}" @click="form.type=t">{{t}}</button>
+            <button class="chip mini add" @click="newTypeFor=true">＋ 自定义</button>
+          </div>
+          <div style="padding:0 15px 13px" v-if="newTypeFor">
+            <input class="field" style="padding:10px 0;border-bottom:1px solid var(--sep)"
+                   v-model="draftType" maxlength="12" placeholder="最多 12 个字" @keyup.enter="addType">
+            <button class="linkbtn" style="margin-top:8px" @click="addType">加入</button>
           </div>
         </div>
 
         <div class="card">
-          <div class="hd">快捷回复 · 点一下填进去</div>
+          <div class="hd">快捷回复 · 可多选</div>
           <div class="chipwrap">
-            <button class="chip mini" v-for="r in replies" :key="r" @click="useReply(r)">{{r}}</button>
+            <button class="chip mini r" v-for="c in replies" :key="c"
+                    :class="{on:form.replyChips.indexOf(c)>=0}" @click="toggleIn(form.replyChips,c)">{{c}}</button>
             <button class="chip mini add" @click="newReply=true">＋ 自定义</button>
           </div>
           <div style="padding:0 15px 13px" v-if="newReply">
-            <input class="field" v-model="draftReply" maxlength="10" placeholder="最多 10 个字"
-                   @keyup.enter="addReply">
+            <input class="field" style="padding:10px 0;border-bottom:1px solid var(--sep)"
+                   v-model="draftReply" maxlength="10" placeholder="最多 10 个字" @keyup.enter="addReply">
             <button class="linkbtn" style="margin-top:8px" @click="addReply">加入我的清单</button>
           </div>
         </div>
 
         <div class="card">
-          <div class="hd">记录内容</div>
-          <textarea class="field" v-model="form.content" placeholder="写清楚：谁说了什么、要做什么、什么时候要。"></textarea>
+          <div class="hd" style="display:flex;align-items:center;justify-content:space-between;padding-bottom:0">
+            <span>记录内容</span>
+            <div class="btnrow" style="width:auto">
+              <button class="chip mini" :class="{on:!form.todoMode}" @click="form.todoMode=false">文字</button>
+              <button class="chip mini" :class="{on:form.todoMode}" @click="form.todoMode=true">勾选框</button>
+            </div>
+          </div>
+          <textarea class="field" v-if="!form.todoMode" v-model="form.content"
+                    placeholder="写清楚：谁说了什么、要做什么、什么时候要。"></textarea>
+          <div v-else style="padding:8px 15px 12px">
+            <div v-for="(t,i) in form.todos" :key="i" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <span class="box" style="width:19px;height:19px;flex:0 0 auto;border-radius:6px;border:1.8px solid rgba(60,60,67,.3)"></span>
+              <input class="todoInput" v-model="form.todos[i]" placeholder="要做的事">
+              <button class="linkbtn off" @click="form.todos.splice(i,1)">×</button>
+            </div>
+            <button class="chip mini add" @click="form.todos.push('')">＋ 加一条</button>
+          </div>
         </div>
 
         <div class="card">
           <div class="hd">照片 / 文件 · 可多选</div>
           <div class="chipwrap">
-            <label class="chip mini" style="cursor:pointer">
-              📷 选照片
-              <input type="file" accept="image/*" multiple hidden @change="pickImages">
-            </label>
-            <label class="chip mini" style="cursor:pointer">
-              📎 选文件
-              <input type="file" multiple hidden @change="pickFiles">
-            </label>
+            <label class="chip mini">📷 选照片<input type="file" accept="image/*" multiple hidden @change="pickImages"></label>
+            <label class="chip mini">📎 选文件<input type="file" multiple hidden @change="pickFiles"></label>
           </div>
           <div style="padding:0 15px 13px" v-if="form.photos.length">
-            <div class="thumbs">
-              <img v-for="(p,i) in form.photos" :key="i" :src="p.preview" :alt="p.name">
-            </div>
+            <div class="thumbs"><img v-for="(p,i) in form.photos" :key="i" :src="p.preview" :alt="p.name"></div>
           </div>
           <div style="padding:0 15px 13px" v-if="form.docs.length">
             <div class="tli-chips">
-              <span class="tag att" v-for="(d,i) in form.docs" :key="i">
-                📎 {{d.name}}
+              <span class="tag g" v-for="(d,i) in form.docs" :key="i">📎 {{d.name}}
                 <button style="margin-left:6px;color:var(--danger);font-weight:700" @click="form.docs.splice(i,1)">×</button>
               </span>
             </div>
@@ -655,18 +628,26 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         </div>
 
         <div class="card">
-          <div class="hd">指定给谁</div>
+          <div class="hd">参与协作的部门与人员</div>
           <div class="chipwrap">
             <button class="chip mini" v-for="d in deptList" :key="d.key"
-                    :class="{on:form.dept===d.key}" @click="form.dept=d.key;form.assignTo=''">
-              {{d.label}}
-            </button>
+                    :class="{on:form.depts.indexOf(d.key)>=0}" @click="toggleIn(form.depts,d.key)">{{d.label}}</button>
           </div>
-          <select class="field" v-model="form.assignTo" v-if="form.dept">
-            <option value="">不指派（留给自己）</option>
-            <option v-for="u in usersOfDept(form.dept)" :key="u.username" :value="u.username">
-              {{u.displayName}} · {{roleList(u)}}
-            </option>
+          <div class="chipwrap" v-if="form.depts.length" style="padding-top:0">
+            <button class="chip mini" v-for="u in usersOfDepts(form.depts)" :key="u.username"
+                    :class="{on:form.participants.indexOf(u.username)>=0}"
+                    @click="toggleIn(form.participants,u.username)">{{u.displayName}}</button>
+          </div>
+          <p class="hint" v-if="form.depts.length">
+            勾选的人会在他们的「跟进中」列表里看到这张单。
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="hd">提醒谁跟进（只发提醒，不影响谁看得到）</div>
+          <select class="field" v-model="form.remindTo">
+            <option value="">不提醒</option>
+            <option v-for="u in userList" :key="u.username" :value="u.username">{{u.displayName}} · {{roleList(u)}}</option>
           </select>
         </div>
 
@@ -686,6 +667,129 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
     </div>
   </div>
 
+  <!-- ============ 独立建单（右下角 ＋） ============ -->
+  <div class="mask" v-if="sheet==='neworder'" @click.self="closeSheet">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <button class="linkbtn" @click="closeSheet">取消</button>
+        <h2 style="text-align:center">新增订单档案</h2>
+        <span style="width:34px"></span>
+      </div>
+      <div class="sheet-bd">
+        <div class="card" style="margin-top:12px">
+          <div class="hd">订单资料</div>
+          <input class="field" v-model="newOrder.projNo" placeholder="工程单号" autocapitalize="characters">
+          <input class="field" v-model="newOrder.customerName" placeholder="客户名字">
+          <input class="field" v-model="newOrder.customerContact" placeholder="客户电话">
+          <input class="field" v-model="newOrder.customerAddress" placeholder="客户地址">
+          <input class="field" v-model="newOrder.salesName" placeholder="业务员">
+          <input class="field" v-model="newOrder.salesPhone" placeholder="业务员电话">
+        </div>
+        <div class="card">
+          <div class="hd">客户画像 · 习惯与偏好</div>
+          <div class="chipwrap">
+            <button class="chip mini p" v-for="c in profileChipOptions" :key="'ph'+c"
+                    :class="{on:newOrder.chips.indexOf(c)>=0}" @click="toggleIn(newOrder.chips,c)">{{c}}</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">客户画像 · 怎么联系他</div>
+          <div class="chipwrap">
+            <button class="chip mini c" v-for="c in contactPrefOptions" :key="'cc'+c"
+                    :class="{on:newOrder.contactPrefs.indexOf(c)>=0}" @click="toggleIn(newOrder.contactPrefs,c)">{{c}}</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">第一条记录</div>
+          <div class="chipwrap">
+            <button class="chip mini t" v-for="t in typeChips" :key="t"
+                    :class="{on:newOrder.type===t}" @click="newOrder.type=t">{{t}}</button>
+          </div>
+          <textarea class="field" v-model="newOrder.content" placeholder="写点什么（可留空）"></textarea>
+        </div>
+      </div>
+      <div class="sheet-ft">
+        <button class="btn" :disabled="busy || !newOrder.projNo.trim()" @click="submitNewOrder">
+          <span v-if="busy" class="spin"></span>创建
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 编辑客户画像 ============ -->
+  <div class="mask pmask" v-if="sheet==='profile'" @click.self="closeSheet">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <button class="linkbtn" @click="closeSheet">取消</button>
+        <h2 style="text-align:center">客户画像 · {{order?order.projNo:''}}</h2>
+        <span style="width:34px"></span>
+      </div>
+      <div class="sheet-bd">
+        <div class="card" style="margin-top:12px">
+          <div class="hd">习惯与偏好</div>
+          <div class="chipwrap">
+            <button class="chip mini p" v-for="c in profileChipOptions" :key="'ph'+c"
+                    :class="{on:formProfile.chips.indexOf(c)>=0}" @click="toggleIn(formProfile.chips,c)">{{c}}</button>
+            <button class="chip mini add" @click="newProfileChip=true">＋ 自定义</button>
+          </div>
+          <div style="padding:0 15px 13px" v-if="newProfileChip">
+            <input class="field" style="padding:10px 0;border-bottom:1px solid var(--sep)"
+                   v-model="draftProfileChip" maxlength="12" placeholder="最多 12 个字" @keyup.enter="addProfileChip">
+            <button class="linkbtn" style="margin-top:8px" @click="addProfileChip">加入</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">怎么联系他方便 · 可多选</div>
+          <div class="chipwrap">
+            <button class="chip mini c" v-for="c in contactPrefOptions" :key="'cc'+c"
+                    :class="{on:formProfile.contactPrefs.indexOf(c)>=0}" @click="toggleIn(formProfile.contactPrefs,c)">{{c}}</button>
+            <button class="chip mini add" @click="newContactPref=true">＋ 自定义</button>
+          </div>
+          <div style="padding:0 15px 13px" v-if="newContactPref">
+            <input class="field" style="padding:10px 0;border-bottom:1px solid var(--sep)"
+                   v-model="draftContactPref" maxlength="12" placeholder="最多 12 个字" @keyup.enter="addContactPref">
+            <button class="linkbtn" style="margin-top:8px" @click="addContactPref">加入</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">补充说明</div>
+          <textarea class="field" v-model="formProfile.note" placeholder="比如：厨房不能有味，客户很在意。客厅要多一个储物位。"></textarea>
+        </div>
+      </div>
+      <div class="sheet-ft">
+        <button class="btn" :disabled="busy" @click="saveProfile">
+          <span v-if="busy" class="spin"></span>保存
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 铃铛消息 ============ -->
+  <div class="mask" v-if="sheet==='bell'" @click.self="closeSheet">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <h2>消息</h2>
+        <button class="linkbtn off" @click="closeSheet">关闭</button>
+      </div>
+      <div class="sheet-bd">
+        <div class="card" style="margin-top:12px;padding:0">
+          <div v-if="!notifs.length" class="empty" style="padding:44px 20px">暂时没有新消息</div>
+          <div class="noti" v-for="(n,i) in notifs" :key="i" :class="{unread:n.isNew}" @click="openNoti(n)">
+            <span class="nd"></span>
+            <span class="nb">
+              <b>{{n.authorName}}</b> 在 <b>{{n.projNo}}</b>
+              <template v-if="n.assignToName"> 提醒 <b>{{n.assignToName}}</b> 跟进</template>
+              <template v-else> 增加新的内容</template>
+              <span class="t">{{fmtTime(n.at)}}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ 设置（仅 Admin） ============ -->
   <div class="mask" v-if="sheet==='settings'" @click.self="closeSheet">
     <div class="sheet">
@@ -698,14 +802,14 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         <div class="card" style="margin-top:12px">
           <div class="hd">快捷回复短语 · 全公司共用</div>
           <div class="chipwrap">
-            <span class="tag" v-for="(r,i) in cfg.chipSets.replies" :key="r">
-              {{r}}
-              <button style="margin-left:6px;color:var(--red);font-weight:700" @click="delReply(i)">×</button>
+            <span class="tag r" v-for="(c,i) in cfg.chipSets.replies" :key="c">
+              {{c}}
+              <button style="margin-left:6px;color:var(--danger);font-weight:700" @click="delReply(i)">×</button>
             </span>
           </div>
           <div style="padding:0 15px 13px;display:flex;gap:8px;align-items:center">
             <input class="field" style="flex:1 1 auto;padding:10px 0;border-bottom:1px solid var(--sep)"
-                   v-model="draftAdmin" maxlength="10" placeholder="最多 10 个字">
+                   v-model="draftAdmin" maxlength="10" placeholder="最多 10 个字" @keyup.enter="addReplyAdmin">
             <button class="linkbtn" style="flex:0 0 auto" @click="addReplyAdmin">加入</button>
           </div>
         </div>
@@ -713,9 +817,9 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         <div class="card">
           <div class="hd">客户画像 · 习惯与偏好</div>
           <div class="chipwrap">
-            <span class="tag" v-for="(c,i) in cfg.chipSets.profileChips" :key="c">
+            <span class="tag p" v-for="(c,i) in cfg.chipSets.profileChips" :key="c">
               {{c}}
-              <button style="margin-left:6px;color:var(--red);font-weight:700" @click="delProfileChip(i)">×</button>
+              <button style="margin-left:6px;color:var(--danger);font-weight:700" @click="delProfileChip(i)">×</button>
             </span>
           </div>
           <div style="padding:0 15px 13px;display:flex;gap:8px;align-items:center">
@@ -728,9 +832,9 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         <div class="card">
           <div class="hd">客户画像 · 怎么联系他方便</div>
           <div class="chipwrap">
-            <span class="tag" v-for="(c,i) in cfg.chipSets.contactPrefs" :key="c">
+            <span class="tag c" v-for="(c,i) in cfg.chipSets.contactPrefs" :key="c">
               {{c}}
-              <button style="margin-left:6px;color:var(--red);font-weight:700" @click="delContactPref(i)">×</button>
+              <button style="margin-left:6px;color:var(--danger);font-weight:700" @click="delContactPref(i)">×</button>
             </span>
           </div>
           <div style="padding:0 15px 13px;display:flex;gap:8px;align-items:center">
@@ -743,8 +847,8 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
         <div class="card" v-for="d in deptList" :key="d.key">
           <div class="hd">{{d.label}} · 类型 chips</div>
           <div class="chipwrap">
-            <button class="chip mini" v-for="t in typeChipsOf(d.key)" :key="t" @click="delType(d.key,t)">
-              {{t}} <span style="color:var(--red);font-weight:700">×</span>
+            <button class="chip mini t" v-for="t in typeChipsOf(d.key)" :key="t" @click="delType(d.key,t)">
+              {{t}} <span style="color:var(--danger);font-weight:700">×</span>
             </button>
             <button class="chip mini add" @click="addTypeFor=d.key">＋ 新增</button>
           </div>
@@ -778,74 +882,6 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
     </div>
   </div>
 
-  <!-- ============ 铃铛消息 ============ -->
-  <div class="mask" v-if="sheet==='bell'" @click.self="closeSheet">
-    <div class="sheet">
-      <div class="sheet-hd">
-        <h2>消息</h2>
-        <button class="linkbtn off" @click="closeSheet">关闭</button>
-      </div>
-      <div class="sheet-bd">
-        <div class="card" style="margin-top:12px;padding:0">
-          <div v-if="!notifs.length" class="empty" style="padding:44px 20px">
-            暂时没有新消息
-          </div>
-          <div class="noti" v-for="(n,i) in notifs" :key="i" :class="{unread:n.isNew}" @click="openNoti(n)">
-            <span class="nd"></span>
-            <span class="nb">
-              <b>{{n.authorName}}</b> 在 <b>{{n.projNo}}</b>
-              <template v-if="n.assignToName"> 指定 <b>{{n.assignToName}}</b> 跟进</template>
-              <template v-else> 增加新的内容</template>
-              <span class="t">{{fmtTime(n.at)}}</span>
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ 编辑客户画像 ============ -->
-  <div class="mask pmask" v-if="sheet==='profile'" @click.self="closeSheet">
-    <div class="sheet">
-      <div class="sheet-hd">
-        <button class="linkbtn" @click="closeSheet">取消</button>
-        <h2 style="text-align:center">客户画像 · {{order?order.projNo:''}}</h2>
-        <span style="width:34px"></span>
-      </div>
-      <div class="sheet-bd">
-        <div class="card" style="margin-top:12px">
-          <div class="hd">习惯与偏好</div>
-          <div class="chipwrap">
-            <button class="chip mini" v-for="c in profileChipOptions" :key="c"
-                    :class="{on: formProfile.chips.indexOf(c)>=0}" @click="toggleProfileChip(c)">{{c}}</button>
-          </div>
-          <p style="margin:0;padding:0 15px 13px;font-size:12px;color:var(--muted);line-height:1.55">
-            点一下就加进去。已有的不会消失 —— 这份画像是全公司共用的，别人加的你也能看到。
-          </p>
-        </div>
-
-        <div class="card">
-          <div class="hd">怎么联系他方便</div>
-          <div class="chipwrap">
-            <button class="chip mini" v-for="c in contactPrefOptions" :key="c"
-                    :class="{on: formProfile.contactPref===c}" @click="formProfile.contactPref = c">{{c}}</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="hd">补充说明</div>
-          <textarea class="field" v-model="formProfile.note"
-                    placeholder="比如：厨房不能有味，客户很在意。客厅要多一个储物位。"></textarea>
-        </div>
-      </div>
-      <div class="sheet-ft">
-        <button class="btn" :disabled="busy" @click="saveProfile">
-          <span v-if="busy" class="spin"></span>保存
-        </button>
-      </div>
-    </div>
-  </div>
-
   <div class="toast" v-if="toast" :class="err">{{toast}}</div>
 </div>
 
@@ -855,136 +891,7 @@ textarea.field{resize:vertical;min-height:88px;line-height:1.55}
    后端地址（部署后勿手改）
    ============================================================ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzuwbRRD060rqlNQl8kqt-uLL5W8zbPiyQH4WEKKMk_-EnOmbWmSG7O1AVim99HfsVB6g/exec';
-/* logo 走 announcement 仓库里同一张图；加载不到就自动退回文字，不白屏 */
 const LOGO_URL = 'https://ongsami-create.github.io/squirrelannouncement/assets/squirrel-care.png';
-
-/* ============================================================
-   Mock 模式：index.html?mock=1
-   ============================================================
-   后端还没部署新 action 时，没法在本地把每个界面点一遍。
-   这个开关让 api() 返回假数据，界面能完整跑通、演示、验收。
-   ⚠️ 不带 ?mock=1 时完全走真实 GAS，生产零影响。 */
-const MOCK = location.search.indexOf('mock=1') >= 0;
-const MOCK_USERS = {
-  SSD: { displayName: 'SAMI', roles: ['sales'] },
-  FSD: { displayName: 'STELLA', roles: ['admin', 'sales'] },
-  JIA: { displayName: 'JIA', roles: ['install'] }
-};
-function mockOrder(projNo) {
-  const now = Date.now(), H = 3600000;
-  return {
-    projNo: projNo || 'SSD09', customerName: 'RAY ONG',
-    customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru',
-    salesName: 'SAMI', salesPhone: '019-888 7766', quoteTotal: 42149,
-    assignee: 'SSD', done: false, doneAt: '',
-    profile: { chips: ['有小孩', '洁癖', '认死理'], contactPref: '只能下午联系' },
-    lastRead: {},
-    events: [
-      { id: 'a1', at: new Date(now - 50 * H).toISOString(), author: 'SSD', type: '要求', replyChip: '', content: '客户要求所有板材用同一种颜色，色差不能超过一档。\n厨房台面高度要跟上次那单一样。', photos: [], docs: [], assignTo: 'FSD' },
-      { id: 'a2', at: new Date(now - 28 * H).toISOString(), author: 'FSD', type: '方案', replyChip: '收到', content: '已量尺：厨房 3.2m × 2.1m，窗台下净高 92cm。\n出了 V1 方案，配色统一用暖白。', photos: [], docs: [], assignTo: 'SSD' },
-      { id: 'a3', at: new Date(now - 6 * H).toISOString(), author: 'SSD', type: '沟通', replyChip: '待确认', content: '客户看了 V1，嫌把手太细。约周四下午带样品上门。', photos: [], docs: [], assignTo: null }
-    ]
-  };
-}
-function mockApi(action, p) {  const users = {};
-  Object.keys(MOCK_USERS).forEach(k => { users[k] = MOCK_USERS[k]; });
-  const chipSets = {
-    types: {
-      admin: ['沟通', '问题', '变更', '注意事项', '确认'],
-      sales: ['沟通', '要求', '问题', '变更', '注意事项', '确认'],
-      design: ['量尺', '方案', '问题', '注意事项'],
-      order: ['排期', '包装', '工艺', '问题', '注意事项'],
-      logistics: ['发货', '装柜', '抵达', '物流异常', '注意事项'],
-      install: ['现场问题', '验收', '注意事项']
-    },
-    replies: ['收到', '已安排', '明天再联系', '客户已改口', '待确认', '已完工', '客户不在', '要再量'],
-    profileChips: ['洁癖', '不能抽烟', '有小孩', '有宠物', '价格敏感', '要求高', '怕油烟', '爱干净', '老人同住', '自己住', '怕打扰', '喜欢慢慢来', '时间紧张', '爱讨价还价', '认死理', '听设计师的', '要自己拍板'],
-    contactPrefs: ['微信', '电话', 'WhatsApp', '只能上午联系', '只能下午联系', '周末才能联系']
-  };
-  if (action === 'getConfig') {
-    // ⚠️ 字段必须跟真后端 _getConfig_ 逐字段对齐，否则 mock 通过了真环境照样炸
-    //    （这次就是漏了 profileChips/contactPrefs，画像编辑的 chips 全空）
-    return {
-      ok: true, version: 'v2.0', users, rosterCount: 3,
-      roles: { admin: '管理员', sales: '业务员', design: '设计师', order: '下单员', logistics: '物流', install: '安装员' },
-      roleTypes: { admin: ['沟通','问题','变更','注意事项','确认'], sales: ['沟通','要求','问题','变更','注意事项','确认'], design: ['量尺','方案','问题','注意事项'], order: ['排期','包装','工艺','问题','注意事项'], logistics: ['发货','装柜','抵达','物流异常','注意事项'], install: ['现场问题','验收','注意事项'] },
-      chipSets,
-      profileChips: ['洁癖','不能抽烟','有小孩','有宠物','价格敏感','要求高','怕油烟','爱干净','老人同住','自己住','怕打扰','喜欢慢慢来','时间紧张','爱讨价还价','认死理','听设计师的','要自己拍板'],
-      contactPrefs: ['微信','电话','WhatsApp','只能上午联系','只能下午联系','周末才能联系'],
-      installProblems: ['墙面不平','缺件','磕碰','门缝不对','尺寸有误','客户改口','电梯进不去','楼层没电梯','现场无法施工','客户不在'],
-      priorities: ['必须做','尽量做','已拒绝'],
-      source: 'MOCK'
-    };
-  }
-  if (action === 'getInbox') {
-    const now = Date.now(), H = 3600000;
-    // ⚠️ 必须按 username 过滤 + admin 看全部 —— 不然 mock 会掩盖
-    //    「换了人角色没重置」这类真 bug（2026-10-20 就被它骗过一次）
-    const all = [
-      { projNo: 'SSD09', customerName: 'RAY ONG', customerContact: '012-345 6789', createdBy: 'SSD', assignee: 'SSD', lastAt: new Date(now - 3 * 60000).toISOString(), lastAuthor: 'SSD', lastType: '沟通', lastReplyChip: '已安排', unread: true, hasPhotos: true, lastPhotos: 3, hasDocs: true, lastDocs: 1, done: false, clientProfile: { chips: ['有小孩', '洁癖', '认死理'], contactPrefs: ['只能下午联系'] } },
-      { projNo: 'PSD39', customerName: 'SIEW HEONG', customerContact: '010-999 8888', createdBy: 'PSD', assignee: 'PSD', lastAt: new Date(now - 5 * H).toISOString(), lastAuthor: 'PSD', lastType: '要求', lastReplyChip: '', unread: false, hasPhotos: false, lastPhotos: 0, hasDocs: false, lastDocs: 0, done: false, clientProfile: null },
-      { projNo: 'ASD07', customerName: 'LIM CARPENTER', createdBy: 'ASD', assignee: 'ASD', lastAt: new Date(now - 26 * H).toISOString(), doneAt: new Date(now - 26 * H).toISOString(), lastAuthor: 'JIA', lastType: '验收', lastReplyChip: '已完工', unread: false, hasPhotos: true, lastPhotos: 4, hasDocs: false, lastDocs: 0, done: true }
-    ];
-    const isAdmin = (p.role === 'admin');
-    const mine = all.filter(r => isAdmin || r.createdBy === p.username || r.assignee === p.username);
-    const DN = { SSD: 'SAMI', PSD: 'PEGGY', ASD: 'ANDREW', JIA: 'JIA', FSD: 'STELLA', admin: 'Administrator' };
-    const withNames = mine.map(r => Object.assign({}, r, {
-      lastAuthorName: DN[r.lastAuthor] || r.lastAuthor || '',
-      assigneeName: DN[r.assignee] || ''
-    }));
-    return {
-      ok: true,
-      following: withNames.filter(r => !r.done), done: withNames.filter(r => r.done),
-      followingCount: withNames.filter(r => !r.done).length, doneCount: withNames.filter(r => r.done).length
-    };
-  }
-  if (action === 'getPendingQuotes') {
-    const now = Date.now(), H = 3600000;
-    const quotes = [
-      { projNo: 'PSD33', customerName: 'CHIN HOCK', customerContact: '011-2222 3333', customerAddress: 'Johor Bahru', salesName: 'PEGGY', quoteTotal: 28800, clientProfile: { chips: ['有小孩'], contactPrefs: ['只能下午联系'] } },
-      { projNo: 'PSD01', customerName: 'LIM ENTERPRISE', customerContact: '012-888 7766', customerAddress: 'Pasir Gudang', salesName: 'PEGGY', quoteTotal: 45600, clientProfile: null },
-      { projNo: 'PSD08', customerName: 'TAN METAL', customerContact: '013-555 1212', customerAddress: 'Batu Pahat', salesName: 'PEGGY', quoteTotal: 12300, clientProfile: { chips: ['洁癖', '认死理'], contactPrefs: ['微信'] } }
-    ];
-    return { ok: true, quotes, count: quotes.length, owner: p.username };
-  }
-  if (action === 'notifications') {
-    const now = Date.now(), H = 3600000;
-    return { ok: true, unread: 2, lastReadAt: new Date(now - 3 * H).toISOString(), items: [
-      { at: new Date(now - 20 * 60000).toISOString(), projNo: 'SSD09', customerName: 'RAY ONG', author: 'JUN', authorName: 'JUN', type: '验收', assignTo: null, markDone: false },
-      { at: new Date(now - 90 * 60000).toISOString(), projNo: 'fsd17', customerName: 'WIEW LI WAN', author: 'FSD', authorName: 'STELLA', type: '沟通', assignTo: 'SSD', assignToName: 'SAMI', markDone: false },
-      { at: new Date(now - 5 * H).toISOString(), projNo: 'PSD39', customerName: 'SIEW HEONG', author: 'PSD', authorName: 'PEGGY', type: '要求', assignTo: null, markDone: false }
-    ] };
-  }
-  if (action === 'readNotifications') return { ok: true, at: new Date().toISOString() };
-  if (action === 'searchAll') {
-    const q = String(p.q || '').toLowerCase();
-    const all = [
-      { kind: 'quote', projNo: 'PSD33', customerName: 'CHIN HOCK', customerContact: '011-2222 3333', salesName: 'PEGGY', quoteTotal: 28800, clientProfile: { chips: ['有小孩'] }, done: false, lastAt: '' },
-      { kind: 'order', projNo: 'SSD09', customerName: 'RAY ONG', customerContact: '012-345 6789', salesName: 'SAMI', done: false, lastAt: new Date(Date.now() - 180000).toISOString(), lastAuthorName: 'SAMI', lastType: '沟通', lastReplyChip: '已安排', lastPhotos: 3, lastDocs: 1 }
-    ];
-    const hit = (o) => Object.keys(o).some(k => typeof o[k] === 'string' && o[k].toLowerCase().indexOf(q) >= 0);
-    return { ok: true, results: all.filter(hit), count: all.filter(hit).length };
-  }
-  if (action === 'getQuoteInfo') {
-    return { ok: true, projNo: p.projNo, owner: p.username || 'SSD', quote: { customerName: 'RAY ONG', customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru', salesperson: 'SAMI', salespersonContact: '019-888 7766', total: 42149 } };
-  }
-  if (action === 'getOrder') return { ok: true, order: mockOrder(p.projNo) };
-  if (action === 'saveProfile') {
-    const o = mockOrder(p.projNo);
-    if (p.profile) {
-      // ⚠️ 真后端收到的是 FormData 字符串（e.parameter 永远是 string），
-      //    mock 模式下直接拿到的是对象。两种都要认，否则会静默丢数据。
-      let pf = {};
-      try {
-        pf = (typeof p.profile === 'string') ? JSON.parse(p.profile) : (p.profile || {});
-      } catch (e) { pf = {}; }
-      o.profile = Object.assign({}, o.profile, pf);
-    }
-    return { ok: true, order: o };
-  }
-  if (action === 'uploadFile') return { ok: true, name: p.name, url: 'https://example.com/' + encodeURIComponent(p.name || 'file'), size: 1024 };
-  return { ok: true };
-}
 
 const DEPT_LIST = [
   { key: 'sales', label: '业务员' },
@@ -995,7 +902,121 @@ const DEPT_LIST = [
   { key: 'admin', label: '管理员' }
 ];
 
-/* ---------- 请求层：必须有超时，且区分「慢」和「断」 ---------- */
+/* ============================================================
+   Mock 模式：index.html?mock=1 —— 后端没部署时也能点完所有界面
+   ⚠️ 字段必须跟真后端逐字段对齐，否则 mock 通过了真环境照样炸
+   ============================================================ */
+const MOCK = location.search.indexOf('mock=1') >= 0;
+const MOCK_USERS = {
+  SSD: { displayName: 'SAMI', roles: ['sales'] },
+  PSD: { displayName: 'PEGGY', roles: ['sales'] },
+  FSD: { displayName: 'STELLA', roles: ['admin', 'sales'] },
+  JIA: { displayName: 'JIA', roles: ['install'] }
+};
+const MOCK_PROFILE_CHIPS = ['洁癖','不能抽烟','有小孩','有宠物','价格敏感','要求高','怕油烟','爱干净','老人同住','自己住','怕打扰','喜欢慢慢来','时间紧张','爱讨价还价','认死理','听设计师的','要自己拍板'];
+const MOCK_CONTACT_PREFS = ['微信','电话','WhatsApp','只能上午联系','只能下午联系','周末才能联系'];
+const MOCK_REPLIES = ['收到','已安排','明天再联系','客户已改口','待确认','已完工','客户不在','要再量'];
+
+function mockOrder(projNo) {
+  const now = Date.now(), H = 3600000;
+  return {
+    projNo: projNo || 'SSD09', customerName: 'RAY ONG',
+    customerContact: '012-345 6789', customerAddress: 'Lot 88, Jalan Pulai, 81200 Johor Bahru',
+    salesName: 'SAMI', salesPhone: '019-888 7766', quoteTotal: 42149,
+    createdBy: 'SSD', assignee: 'FSD', done: false, doneAt: '',
+    participants: ['JIA'], participantDepts: ['install'],
+    profile: { chips: ['有小孩','洁癖','认死理'], contactPrefs: ['只能下午联系'], contactPref: '只能下午联系', note: '厨房不能有味，客户很在意。客厅要多一个储物位。' },
+    todos: [
+      { id: 't1', text: '复量厨房台面高度', done: false, doneBy: '', doneAt: '' },
+      { id: 't2', text: '把手样品送到客户家', done: true, doneBy: 'SSD', doneAt: new Date(now-2*H).toISOString() }
+    ],
+    lastRead: {},
+    events: [
+      { id: 'a1', at: new Date(now-50*H).toISOString(), author: 'SSD', role: 'sales', type: '要求', replyChips: [], content: '客户要求所有板材用同一种颜色，色差不能超过一档。\n厨房台面高度要跟上次那单一样。', todos: [{id:'t1',text:'复量厨房台面高度'}], photos: [], docs: [], assignTo: 'FSD', participants: ['JIA'] },
+      { id: 'a2', at: new Date(now-28*H).toISOString(), author: 'FSD', role: 'design', type: '方案', replyChips: ['收到'], content: '已量尺：厨房 3.2m × 2.1m，窗台下净高 92cm。\n出了 V1 方案，配色统一用暖白。', todos: [], photos: [], docs: [], assignTo: null, participants: [] },
+      { id: 'a3', at: new Date(now-6*H).toISOString(), author: 'SSD', role: 'sales', type: '沟通', replyChips: ['待确认','明天再联系'], content: '客户看了 V1，嫌把手太细。约周四下午带样品上门。', todos: [{id:'t2',text:'把手样品送到客户家'}], photos: [], docs: [], assignTo: null, participants: [] }
+    ]
+  };
+}
+function mockApi(action, p) {
+  const users = {};
+  Object.keys(MOCK_USERS).forEach(k => { users[k] = MOCK_USERS[k]; });
+  const chipSets = {
+    types: {
+      admin: ['沟通','问题','变更','注意事项','确认'],
+      sales: ['沟通','要求','问题','变更','注意事项','确认'],
+      design: ['量尺','方案','问题','注意事项'],
+      order: ['排期','包装','工艺','问题','注意事项'],
+      logistics: ['发货','装柜','抵达','物流异常','注意事项'],
+      install: ['现场问题','验收','注意事项']
+    },
+    profileChips: MOCK_PROFILE_CHIPS.slice(),
+    contactPrefs: MOCK_CONTACT_PREFS.slice(),
+    replies: MOCK_REPLIES.slice()
+  };
+  if (action === 'getConfig') {
+    return { ok: true, version: 'v3', users, rosterCount: 4,
+      roles: { admin:'管理员', sales:'业务员', design:'设计师', order:'下单员', logistics:'物流', install:'安装员' },
+      chipSets, source: 'MOCK' };
+  }
+  if (action === 'getInbox') {
+    const now = Date.now(), H = 3600000;
+    const all = [
+      { projNo:'SSD09', customerName:'RAY ONG', customerContact:'012-345 6789', createdBy:'SSD', assignee:'FSD', participants:['JIA'], participantNames:['JIA'], lastAt:new Date(now-3*60000).toISOString(), lastAuthor:'SSD', lastAuthorName:'SAMI', lastType:'沟通', lastReplyChips:['已安排'], unread:true, hasPhotos:true, lastPhotos:3, hasDocs:true, lastDocs:1, done:false, clientProfile:{chips:['有小孩','洁癖','认死理'],contactPrefs:['只能下午联系']}, assigneeName:'STELLA' },
+      { projNo:'PSD39', customerName:'SIEW HEONG', customerContact:'010-999 8888', createdBy:'PSD', assignee:'PSD', participants:[], participantNames:[], lastAt:new Date(now-5*H).toISOString(), lastAuthor:'PSD', lastAuthorName:'PEGGY', lastType:'要求', lastReplyChips:[], unread:false, hasPhotos:false, lastPhotos:0, hasDocs:false, lastDocs:0, done:false, clientProfile:null, assigneeName:'PEGGY' }
+    ];
+    const isAdmin = (p.role === 'admin');
+    const mine = all.filter(r => isAdmin || r.createdBy === p.username || (r.participants||[]).indexOf(p.username) >= 0);
+    return { ok:true, following: mine.filter(r=>!r.done), done: mine.filter(r=>r.done),
+      followingCount: mine.filter(r=>!r.done).length, doneCount: mine.filter(r=>r.done).length };
+  }
+  if (action === 'getPendingQuotes') {
+    const quotes = [
+      { projNo:'PSD33', customerName:'CHIN HOCK', customerContact:'011-2222 3333', customerAddress:'Johor Bahru', salesName:'PEGGY', quoteTotal:28800, clientProfile:{chips:['有小孩'],contactPrefs:['只能下午联系']}, owner:p.username },
+      { projNo:'PSD01', customerName:'LIM ENTERPRISE', customerContact:'012-888 7766', customerAddress:'Pasir Gudang', salesName:'PEGGY', quoteTotal:45600, clientProfile:null, owner:p.username },
+      { projNo:'PSD08', customerName:'TAN METAL', customerContact:'013-555 1212', customerAddress:'Batu Pahat', salesName:'PEGGY', quoteTotal:12300, clientProfile:{chips:['洁癖','认死理'],contactPrefs:['微信']}, owner:p.username }
+    ];
+    return { ok:true, quotes, count:quotes.length, owner:p.username };
+  }
+  if (action === 'getOrder') return { ok:true, order: mockOrder(p.projNo) };
+  if (action === 'saveProfile') {
+    const o = mockOrder(p.projNo);
+    if (p.profile) {
+      let pf = {};
+      try { pf = (typeof p.profile === 'string') ? JSON.parse(p.profile) : (p.profile || {}); } catch (e) { pf = {}; }
+      o.profile = Object.assign({}, o.profile, pf);
+    }
+    return { ok:true, order:o };
+  }
+  if (action === 'appendEvent') {
+    const o = mockOrder(p.projNo);
+    let ev = {};
+    try { ev = (typeof p === 'object' && p.events) ? p.events[0] : {}; } catch (e) {}
+    return { ok:true, order:o, eventId:'mock' };
+  }
+  if (action === 'toggleTodo') {
+    const o = mockOrder(p.projNo);
+    (o.todos||[]).forEach(t => { if (t.id === p.todoId) { t.done = !t.done; } });
+    return { ok:true, order:o };
+  }
+  if (action === 'createStandalone') {
+    const o = mockOrder(p.projNo);
+    o.customerName = p.customerName || o.customerName;
+    return { ok:true, order:o, created:true };
+  }
+  if (action === 'notifications') {
+    const now = Date.now(), H = 3600000;
+    return { ok:true, unread:2, lastReadAt:new Date(now-3*H).toISOString(), items:[
+      { at:new Date(now-20*60000).toISOString(), projNo:'SSD09', customerName:'RAY ONG', author:'JUN', authorName:'JUN', type:'验收', assignTo:null, markDone:false },
+      { at:new Date(now-90*60000).toISOString(), projNo:'fsd17', customerName:'WIEW LI WAN', author:'FSD', authorName:'STELLA', type:'沟通', assignTo:'SSD', assignToName:'SAMI', markDone:false }
+    ] };
+  }
+  if (action === 'readNotifications') return { ok:true, at:new Date().toISOString() };
+  if (action === 'uploadFile') return { ok:true, name:p.name, url:'https://example.com/'+encodeURIComponent(p.name||'file'), size:1024 };
+  return { ok:true };
+}
+
+/* ---------- 请求层：超时 + 区分慢/断 ---------- */
 const API_TIMEOUT_MS = 20000;
 async function apiOnce(action, params, timeoutMs) {
   const fd = new FormData();
@@ -1008,7 +1029,7 @@ async function apiOnce(action, params, timeoutMs) {
   const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs || API_TIMEOUT_MS) : null;
   try {
-    const r = await fetch(GAS_URL, { method: 'POST', body: fd, signal: ctrl ? ctrl.signal : undefined });
+    const r = await fetch(GAS_URL, { method:'POST', body:fd, signal: ctrl ? ctrl.signal : undefined });
     const j = await r.json();
     if (!j || j.ok === false) throw new Error((j && j.error) || '请求失败');
     return j;
@@ -1022,16 +1043,12 @@ async function api(action, params = {}) {
     await new Promise(r => setTimeout(r, 900));
     try { return await apiOnce(action, params, 45000); }
     catch (e2) {
-      if (e2 && e2.name === 'AbortError') {
-        const err = new Error('服务器响应太慢，等了 45 秒还没回。');
-        err.slow = true; throw err;
-      }
+      if (e2 && e2.name === 'AbortError') { const err = new Error('服务器响应太慢，等了 45 秒还没回。'); err.slow = true; throw err; }
       throw e2;
     }
   }
 }
 
-/* ---------- 图片压缩：手机原图 3-5MB 直传要 30 秒+ ---------- */
 function compressImage(file, maxSide = 1600, quality = 0.75) {
   return new Promise((resolve, reject) => {
     if (!/^image\//.test(file.type)) return resolve(file);
@@ -1056,10 +1073,7 @@ function compressImage(file, maxSide = 1600, quality = 0.75) {
 function readB64(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
-    r.onload = () => {
-      const s = String(r.result || '');
-      resolve(s.slice(s.indexOf(',') + 1));
-    };
+    r.onload = () => { const s = String(r.result || ''); resolve(s.slice(s.indexOf(',') + 1)); };
     r.onerror = reject;
     r.readAsDataURL(file);
   });
@@ -1071,24 +1085,24 @@ createApp({
     return {
       logo: LOGO_URL, logoFail: false,
       cfgOk: false, cfgError: '', loading: false,
-      cfg: { users: {}, roles: {}, chipSets: { types: {}, replies: [] } },
+      cfg: { users:{}, roles:{}, chipSets:{ types:{}, profileChips:[], contactPrefs:[], replies:[] } },
       me: '', myRole: 'sales',
-      view: 'login', sheet: '',
+      view: 'login', sheet: '', prevSheet: '',
       tab: 'following',
-      inbox: { following: [], done: [] },
+      inbox: { following:[], done:[] },
       quotes: [], quotesLoaded: false, quoteOwner: '', loadingQuotes: false,
-      kw: '', searching: false, searchMode: false, searchResults: [],
-      notifs: [], notifUnread: 0,
+      kw: '', searching: false,
       order: null, timeline: [],
-      busy: false,
-      toast: '', toastKind: '', toastTimer: null,
-      search: { dept: 'sales', owner: '', projNo: '', msg: '', ok: false, found: null, chips: [] },
-      formProfile: { chips: [], contactPref: '', note: '' },
-      form: { projNo: '', type: '', content: '', replyChip: '', photos: [], docs: [], dept: '', assignTo: '', done: false },
-      newReply: false, draftReply: '',
+      notifs: [], notifUnread: 0,
+      busy: false, toast: '', toastKind: '', toastTimer: null,
+      search: { dept:'sales', owner:'', projNo:'', msg:'', ok:false, found:null, chips:[] },
+      form: { projNo:'', type:'', content:'', replyChips:[], todoMode:false, todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false },
+      formProfile: { chips:[], contactPrefs:[], note:'' },
+      newOrder: { projNo:'', customerName:'', customerContact:'', customerAddress:'', salesName:'', salesPhone:'', chips:[], contactPrefs:[], type:'', content:'' },
       myReplies: [],
-      draftAdmin: '', addTypeFor: '', draftType: '',
-      draftProfileChip: '', draftContactPref: ''
+      newReply:false, draftReply:'', newTypeFor:false, draftType:'',
+      newProfileChip:false, draftProfileChip:'', newContactPref:false, draftContactPref:'',
+      draftAdmin:'', addTypeFor:''
     };
   },
 
@@ -1096,35 +1110,23 @@ createApp({
     deptList() { return DEPT_LIST; },
     roleKeys() { return Object.keys(this.cfg.roles || {}); },
     roleLabel() { return (this.cfg.roles || {})[this.myRole] || this.myRole; },
-    meName() {
-      const u = (this.cfg.users || {})[this.me];
-      return u ? u.displayName : this.me;
-    },
+    meName() { const u = (this.cfg.users || {})[this.me]; return u ? u.displayName : this.me; },
     meObj() { return (this.cfg.users || {})[this.me] || {}; },
     myRoles() { return this.meObj.roles || ['sales']; },
     isAdmin() { return this.myRoles.indexOf('admin') >= 0; },
     userList() {
       const u = this.cfg.users || {};
-      return Object.keys(u).map(k => Object.assign({ username: k }, u[k]))
-        .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+      return Object.keys(u).map(k => Object.assign({ username:k }, u[k]))
+        .sort((a,b) => (a.displayName||'').localeCompare(b.displayName||''));
     },
-    /* ⚠️ 搜索是**本地实时过滤** —— 用户要「填入关键字时列表自动筛选」，
-       不是点按钮去后端查。本地过滤 0 延迟，输入即筛。
-       ⚠️ _hit 必须在 methods 里 —— 放 computed 会被 Vue 当 getter，
-       this._hit(...) 就会报「not a function」并让整个模板崩掉。 */
     curList() {
-      const base = this.tab === 'quotes' ? this.quotes
-        : (this.tab === 'done' ? this.inbox.done : this.inbox.following);
+      const base = this.tab === 'quotes' ? this.quotes : (this.tab === 'done' ? this.inbox.done : this.inbox.following);
       const q = this.kw.trim().toLowerCase();
       if (!q) return base;
       return base.filter(r => this._hit(r, q));
     },
-    tabTitle() {
-      if (this.searchMode) return '搜索结果';
-      return this.tab === 'quotes' ? '待处理' : (this.tab === 'done' ? '已完成' : '跟进中');
-    },
+    tabTitle() { return this.tab === 'quotes' ? '待处理' : (this.tab === 'done' ? '已完成' : '跟进中'); },
     tabSub() {
-      if (this.searchMode) return '共 ' + this.searchResults.length + ' 条';
       if (this.tab === 'quotes') return '你在报价系统建了、还没开始跟进的单';
       if (this.tab === 'done') return '点进去还能看完整资料';
       return '最新更新的在最上面 · 红点是没看过的';
@@ -1136,29 +1138,25 @@ createApp({
     emptyHint() {
       if (this.tab === 'quotes') return '你在报价系统建的单会出现在这里，加了资料就转到「跟进中」。';
       if (this.tab === 'done') return '有人点「完成」之后会出现在这里。';
-      return '点右下角 ＋ 找一个工程单号，加第一条资料。';
+      return '点右下角 ＋ 新建一个单，或去「待处理」挑一张报价。';
     },
     typeChips() { return this.typeChipsOf(this.myRole); },
+    profileChipOptions() { return (this.cfg.chipSets || {}).profileChips || []; },
+    contactPrefOptions() { return (this.cfg.chipSets || {}).contactPrefs || []; },
     replies() {
       const base = ((this.cfg.chipSets || {}).replies || []).slice();
       this.myReplies.forEach(r => { if (base.indexOf(r) < 0) base.push(r); });
       return base;
     },
-    profileChipOptions() { return (this.cfg.profileChips || []); },
-    contactPrefOptions() { return (this.cfg.contactPrefs || []); },
-    profileChips() {
-      // ⚠️ 画像真相源 = OrderFile 侧的 order.profile（并集合合并）。
-      //    报价里的 clientProfile 只是建档时的初始值，不再跟这边同步 ——
-      //    报价系统的 Object.assign 是浅合并，多人写会互相覆盖。
-      const p = this.order && this.order.profile;
-      if (!p) return [];
-      const out = (p.chips || []).filter(Boolean).slice();
-      if (p.contactPref && out.indexOf(p.contactPref) < 0) out.push(p.contactPref);
-      return out;
+    orderHabits() { return ((this.order && this.order.profile) || {}).chips || []; },
+    orderContacts() {
+      const p = (this.order && this.order.profile) || {};
+      return p.contactPrefs || (p.contactPref ? [p.contactPref] : []);
     },
     canSubmit() {
       const f = this.form;
-      return !!(f.content.trim() || f.type || f.photos.length || f.docs.length || f.assignTo);
+      return !!(f.content.trim() || f.todos.filter(t=>t.trim()).length || f.replyChips.length
+        || f.photos.length || f.docs.length || f.remindTo || f.participants.length);
     },
     cfgSlow() { return !!(this.cfgError && this.cfgError.indexOf('太慢') >= 0); },
     err() { return this.toastKind === 'err'; },
@@ -1167,44 +1165,60 @@ createApp({
 
   methods: {
     initials(n) { return String(n || '?').slice(0, 1).toUpperCase(); },
-    roleList(u) {
-      return (u.roles || []).map(r => (this.cfg.roles || {})[r] || r).join(' / ') || '—';
-    },
-    nameOf(username) {
-      const u = (this.cfg.users || {})[username];
-      return u ? u.displayName : (username || '');
-    },
+    roleList(u) { return (u.roles || []).map(r => (this.cfg.roles || {})[r] || r).join(' / ') || '—'; },
+    nameOf(u) { const x = (this.cfg.users || {})[u]; return x ? x.displayName : (u || ''); },
+    // ⚠️ 必须返回**数组** —— 返回字符串的话 v-for 会逐字符遍历
+    //    （参与人员会显示成 👥 J 👥 I 👥 A，2026-10-26 实测抓到）
+    namesOf(list) { return (list || []).map(u => this.nameOf(u)).filter(Boolean); },
     money(n) { return Number(n || 0).toLocaleString('en-MY'); },
-    usersOfDept(deptKey) {
-      return this.userList.filter(u => (u.roles || []).indexOf(deptKey) >= 0);
-    },
-    /* ⚠️ 这个必须放 methods 不能放 computed —— 它要带参数在模板里调。
-       放 computed 的话 v-for="t in typeChipsOf(d.key)" 拿到的是函数本身，不是数组。 */
-    typeChipsOf(role) {
-      const t = (this.cfg.chipSets || {}).types || {};
-      if (role) return t[role] || [];
-      const all = [];
-      Object.keys(t).forEach(k => (t[k] || []).forEach(x => { if (all.indexOf(x) < 0) all.push(x); }));
-      return all;
-    },
     ago(iso) {
       if (!iso) return '';
       const t = new Date(iso).getTime();
       if (!t) return '';
       const s = Math.floor((Date.now() - t) / 1000);
       if (s < 60) return '刚刚';
-      if (s < 3600) return Math.floor(s / 60) + ' 分钟前';
-      if (s < 86400) return Math.floor(s / 3600) + ' 小时前';
-      if (s < 86400 * 7) return Math.floor(s / 86400) + ' 天前';
+      if (s < 3600) return Math.floor(s/60) + ' 分钟前';
+      if (s < 86400) return Math.floor(s/3600) + ' 小时前';
+      if (s < 86400*7) return Math.floor(s/86400) + ' 天前';
       return new Date(iso).toLocaleDateString('zh-CN');
     },
-
+    fmtTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso), p = x => (x < 10 ? '0'+x : ''+x);
+      return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+    },
     say(msg, kind = '', ttl = 2600) {
       this.toast = msg; this.toastKind = kind;
       clearTimeout(this.toastTimer);
       this.toastTimer = setTimeout(() => { this.toast = ''; }, ttl);
     },
+    toggleIn(arr, v) {
+      const i = arr.indexOf(v);
+      if (i >= 0) arr.splice(i, 1); else arr.push(v);
+    },
+    typeChipsOf(role) {
+      const t = (this.cfg.chipSets || {}).types || {};
+      return t[role] || [];
+    },
+    habitChips(r) { return ((r && r.clientProfile) || {}).chips || []; },
+    contactChips(r) { return ((r && r.clientProfile) || {}).contactPrefs || []; },
+    _hit(r, q) {
+      const fields = [r.projNo, r.customerName, r.customerContact, r.salesName, r.lastAuthorName, r.assigneeName];
+      for (let i = 0; i < fields.length; i++) {
+        if (fields[i] && String(fields[i]).toLowerCase().indexOf(q) >= 0) return true;
+      }
+      return false;
+    },
+    usersOfDept(k) { return this.userList.filter(u => (u.roles || []).indexOf(k) >= 0); },
+    usersOfDepts(keys) {
+      const out = [];
+      (keys || []).forEach(k => this.usersOfDept(k).forEach(u => {
+        if (out.indexOf(u.username) < 0) out.push(u.username);
+      }));
+      return this.userList.filter(u => out.indexOf(u.username) >= 0);
+    },
 
+    /* ---------- 启动 / 登录 ---------- */
     async boot() {
       this.cfgOk = false; this.cfgError = ''; this.busy = true; this.loading = true;
       try {
@@ -1212,14 +1226,10 @@ createApp({
         this.cfg = r;
         this.myReplies = JSON.parse(localStorage.getItem('of_myreplies') || '[]');
         this.cfgOk = (r.rosterCount || 0) > 0;
-        if (!this.cfgOk) {
-          this.cfgError = '后端连上了，但人员名册是空的（0 个人）。';
-        }
-        // 记住上次登录的人，直接进主界面
+        if (!this.cfgOk) this.cfgError = '后端连上了，但人员名册是空的（0 个人）。';
         const last = localStorage.getItem('of_user');
         if (this.cfgOk && last && (r.users || {})[last]) {
-          this.me = last;
-          this._syncRole_(last);
+          this.me = last; this._syncRole_(last);
           this.view = 'home';
           await this.refreshInbox();
         }
@@ -1230,38 +1240,28 @@ createApp({
       }
       this.busy = false; this.loading = false;
     },
-
-    async login(username) {
-      this.me = username;
-      localStorage.setItem('of_user', username);
-      // ⚠️ 不要用 this.myRoles（computed）来判断角色 ——
-      //    computed 依赖变更要等下一个 tick，这里读到的还是**登录前**的旧值，
-      //    结果就是换了人角色却没重置（2026-10-20 实测：STELLA 登录后看到 0 条）。
-      this._syncRole_(username);
-      this.view = 'home';
-      await this.refreshInbox();
-    },
-
-    /** 按名册给某人挑一个默认岗位 */
     _syncRole_(username) {
       const u = (this.cfg.users || {})[username] || {};
       const roles = u.roles || ['sales'];
-      // 管理员默认用 admin 视角（能看到全部单），其他人用第一个角色。
-      // ⚠️ 之前写成「只在 myRole 不在 roles 里才改」→ STELLA 停在 sales，看不到自己的单。
       const prefer = roles.indexOf('admin') >= 0 ? 'admin' : roles[0];
-      // 用户手动切过就尊重用户的选择
       const saved = localStorage.getItem('of_role');
       this.myRole = (saved && roles.indexOf(saved) >= 0) ? saved : prefer;
       localStorage.setItem('of_role', this.myRole);
     },
-
+    async login(username) {
+      this.me = username;
+      localStorage.setItem('of_user', username);
+      this._syncRole_(username);
+      this.view = 'home';
+      await this.refreshInbox();
+    },
     async logout() {
       localStorage.removeItem('of_user');
-      this.me = ''; this.order = null;
-      this.sheet = ''; this.view = 'login';
+      this.me = ''; this.order = null; this.sheet = ''; this.view = 'login';
       await this.boot();
     },
 
+    /* ---------- 列表 ---------- */
     async refreshInbox() {
       this.busy = true;
       try {
@@ -1272,215 +1272,44 @@ createApp({
       this.busy = false;
       this.loadNotifs();
     },
-
-    /* ---------- 三栏 Tab ---------- */
     async switchTab(t) {
       this.tab = t;
-      this.searchMode = false;
       if (t === 'quotes') await this.loadQuotes();
     },
-    /** 待处理 = 报价系统里我建了、但还没跟进的报价（要读报价文件，慢，缓加载） */
     async loadQuotes(force) {
       if (this.quotesLoaded && !force) return;
       this.busy = true; this.loadingQuotes = true;
       try {
-        const r = await api('getPendingQuotes', {
-          username: this.me, role: this.myRole, owner: this.quoteOwner
-        });
+        const r = await api('getPendingQuotes', { username: this.me, role: this.myRole, owner: this.quoteOwner });
         this.quotes = r.quotes || [];
         this.quotesLoaded = true;
       } catch (e) { this.say('读报价失败：' + e.message, 'err'); }
       this.busy = false; this.loadingQuotes = false;
     },
-    /** 切换看哪个业务员（用户：从 Jessy 转到 Stella） */
     async switchOwner() {
-      this.quotesLoaded = false;
-      this.quotes = [];
+      this.quotesLoaded = false; this.quotes = [];
       await this.loadQuotes(true);
     },
-
-    /* ---------- 搜索 ---------- */
-    /** 实时过滤用的命中判断（必须在 methods，写进 computed 会崩） */
-    _hit(r, q) {
-      const fields = [r.projNo, r.customerName, r.customerContact, r.salesName,
-                      r.lastAuthorName, r.assigneeName];
-      for (let i = 0; i < fields.length; i++) {
-        if (fields[i] && String(fields[i]).toLowerCase().indexOf(q) >= 0) return true;
-      }
-      return false;
-    },
-    async doSearch() {
-      const q = this.kw.trim();
-      if (!q) { this.clearSearch(); return; }
-      this.searching = true;
-      try {
-        const r = await api('searchAll', { q, username: this.me, role: this.myRole });
-        this.searchResults = r.results || [];
-        this.searchMode = true;
-      } catch (e) { this.say('搜索失败：' + e.message, 'err'); }
-      this.searching = false;
-    },
-    clearSearch() {
-      this.searchMode = false; this.searchResults = []; this.kw = '';
-    },
-
-    /* ---------- 列表行 ---------- */
     async openRow(r) {
-      // 「待处理」里的报价还没建档 → 先建档再打开
+      // 「待处理」里的报价还没建档 → 先填第一条信息，提交后才建档并转到跟进中
       if (this.tab === 'quotes' && !r.lastAt) {
-        this.busy = true;
-        try {
-          await api('getOrder', { projNo: r.projNo, username: this.me, role: this.myRole });
-          this.quotesLoaded = false;
-          await this.openOrder(r.projNo);
-          await this.loadQuotes(true);
-          await this.refreshInbox();
-        } catch (e) { this.say(e.message, 'err', 6000); }
-        this.busy = false;
+        this.form = {
+          projNo: r.projNo, type: '', content: '', replyChips: [], todoMode: false,
+          todos: [], photos: [], docs: [], remindTo: '', depts: [], participants: [], done: false
+        };
+        this.prevSheet = '';
+        this.sheet = 'compose';
         return;
       }
       await this.openOrder(r.projNo);
     },
-    /** 客户画像 chips（最多 6 个） */
-    profileChipsOf(r) {
-      const p = r && r.clientProfile;
-      if (!p) return [];
-      const out = [];
-      const push = (c) => { if (c && out.length < 6 && out.indexOf(c) < 0) out.push(c); };
-      (p.chips || []).forEach(push);
-      (p.contactPrefs || []).forEach(push);
-      return out;
-    },
-    /** 信息流 chips（最多 6 个：类型 / 快速回复 / 照片总数 / 文件总数） */
-    flowChipsOf(r) {
-      const out = [];
-      if (!r) return out;
-      if (r.lastType) out.push(r.lastType);
-      if (r.lastReplyChip) out.push(r.lastReplyChip);
-      if (r.lastPhotos) out.push('🖼 ' + r.lastPhotos);
-      if (r.lastDocs) out.push('📎 ' + r.lastDocs);
-      return out.slice(0, 6);
-    },
-
-    /* ---------- 铃铛 ---------- */
-    async loadNotifs() {
-      try {
-        const r = await api('notifications', { username: this.me });
-        const last = r.lastReadAt || '';
-        this.notifs = (r.items || []).map(x => Object.assign({}, x, {
-          isNew: !last || String(x.at) > String(last)
-        }));
-        this.notifUnread = r.unread || 0;
-      } catch (e) { /* 铃铛失败不影响主流程 */ }
-    },
-    async openBell() {
-      this.sheet = 'bell';
-      await this.loadNotifs();
-      try { await api('readNotifications', { username: this.me }); } catch (e) {}
-      this.notifUnread = 0;
-    },
-    openNoti(n) {
-      this.closeSheet();
-      this.openOrder(n.projNo);
-    },
-    fmtTime(iso) {
-      if (!iso) return '';
-      const d = new Date(iso);
-      const p = (x) => (x < 10 ? '0' + x : '' + x);
-      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
-    },
-
-    /* ---------- 客户画像 ---------- */
-    openProfile() {
-      const p = (this.order && this.order.profile) || {};
-      this.formProfile = {
-        chips: (p.chips || []).slice(),
-        contactPref: p.contactPref || '',
-        note: p.note || ''
-      };
-      this.sheet = 'profile';
-    },
-    toggleProfileChip(c) {
-      const i = this.formProfile.chips.indexOf(c);
-      if (i >= 0) this.formProfile.chips.splice(i, 1);
-      else this.formProfile.chips.push(c);
-    },
-    async saveProfile() {
-      this.busy = true;
-      try {
-        const r = await api('saveProfile', {
-          projNo: this.order.projNo,
-          username: this.me,
-          profile: this.formProfile
-        });
-        this.order = r.order;
-        // ⚠️ 回到信息流页，不是 '' —— sheet 是单一状态变量，
-        //    置空会把订单详情页一起关掉，用户会被踢回列表、丢失上下文。
-        this.sheet = 'order';
-        this.say('画像存好了', '', 1800);
-      } catch (e) { this.say(e.message, 'err', 6000); }
-      this.busy = false;
-    },
-
-    /* ---------- 搜索 / 新增 ---------- */
-    openSearch() {
-      this.search = { dept: 'sales', owner: this.me, projNo: '', msg: '', ok: false, found: null, chips: [] };
-      this.sheet = 'search';
-    },
-    closeSheet() {
-      this.sheet = '';
-      this.newReply = false; this.draftReply = '';
-      this.addTypeFor = ''; this.draftType = '';
-    },
-    async doSearch() {
-      const projNo = this.search.projNo.trim();
-      if (!projNo) return;
-      this.busy = true; this.search.msg = ''; this.search.found = null;
-      try {
-        const r = await api('getQuoteInfo', { projNo, username: this.search.owner });
-        const q = r.quote || {};
-        this.search.found = q;
-        this.search.ok = true;
-        this.search.msg = '找到了 · 报价在 ' + nameOf(r.owner) + ' 手上';
-      } catch (e) {
-        this.search.ok = false;
-        this.search.msg = e.message;
-      }
-      this.busy = false;
-    },
-
-    /** 找到之后：建档（自动拉客户资料）+ 顺手存画像 + 打开信息流 */
-    async createFromSearch() {
-      const projNo = this.search.projNo.trim();
-      if (!projNo) return;
-      this.busy = true;
-      try {
-        // getOrder 档案不存在时会自动建档（客户资料从报价读）
-        await api('getOrder', { projNo, username: this.me, role: this.myRole });
-        if (this.search.chips.length) {
-          await api('saveProfile', {
-            projNo, username: this.me, profile: { chips: this.search.chips }
-          });
-        }
-        this.closeSheet();
-        await this.openOrder(projNo);
-        await this.refreshInbox();
-      } catch (e) { this.say(e.message, 'err', 6000); }
-      this.busy = false;
-    },
-    toggleSearchChip(c) {
-      const i = this.search.chips.indexOf(c);
-      if (i >= 0) this.search.chips.splice(i, 1);
-      else this.search.chips.push(c);
-    },
-
-    /* ---------- 信息流 ---------- */
     async openOrder(projNo) {
       this.busy = true;
       try {
         const r = await api('getOrder', { projNo, username: this.me, role: this.myRole });
         this.order = r.order;
         this._buildTimeline();
+        this.prevSheet = '';
         this.sheet = 'order';
       } catch (e) { this.say('打不开：' + e.message, 'err', 5000); }
       this.busy = false;
@@ -1488,73 +1317,103 @@ createApp({
     _buildTimeline() {
       const evs = (this.order && this.order.events) || [];
       const myRead = (this.order && this.order.lastRead && this.order.lastRead[this.me]) || '';
-      // 新的在上；把「上次读到哪」标在分界上
       this.timeline = evs.slice().reverse().map(e => ({
         id: e.id, at: e.at, author: e.author, type: e.type,
-        replyChip: e.replyChip, content: e.content,
+        replyChips: e.replyChips || (e.replyChip ? [e.replyChip] : []),
+        content: e.content, todos: e.todos || [],
         photos: e.photos || [], docs: e.docs || [],
-        assignTo: e.assignTo, markDone: e.markDone,
+        assignTo: e.assignTo, participants: e.participants || [],
+        markDone: e.markDone,
         unreadMark: !!(myRead && e.at > myRead)
       }));
     },
-    printFlow() {
-      if (!this.order) return;
-      const w = window.open('', '_blank');
-      if (!w) { this.say('浏览器挡住了弹窗，请允许后重试', 'err'); return; }
-      const evs = (this.order.events || []).slice().reverse();
-      const rows = evs.map(e => `
-        <div style="padding:9px 0;border-bottom:1px solid #e5e5e5">
-          <div style="font-size:11px;color:#777">
-            ${new Date(e.at).toLocaleString('zh-CN')} · ${e.author}
-            ${e.type ? ' · ' + e.type : ''}${e.assignTo ? ' · 交给 ' + e.assignTo : ''}
-          </div>
-          <div style="font-size:13px;margin-top:3px;white-space:pre-wrap">${this._esc(e.content || '')}</div>
-          <div style="font-size:11px;color:#888;margin-top:3px">
-            ${(e.photos || []).map(p => '📷' + p.name).join('  ')}
-            ${(e.docs || []).map(d => '📎' + d.name).join('  ')}
-          </div>
-        </div>`).join('') || '<div style="color:#888;font-size:12px">（没有记录）</div>';
-
-      w.document.write(`<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
-<title>${this.order.projNo} 信息流</title>
-<style>
-body{font-family:-apple-system,"PingFang SC",sans-serif;padding:26px;color:#111}
-h1{font-size:19px;margin:0 0 4px}
-.m{font-size:12px;color:#666;margin-bottom:16px}
-table{border-collapse:collapse;width:100%;font-size:13px;margin-bottom:16px}
-td{padding:4px 0;vertical-align:top}
-td.k{color:#777;width:78px}
-</style></head><body>
-<h1>Squirrel Care · 订单信息流</h1>
-<div class="m">${this.order.projNo} · ${this.order.customerName || ''} · 打印于 ${this.stamp}</div>
-<table>
-<tr><td class="k">电话</td><td>${this._esc(this.order.customerContact || '—')}</td></tr>
-<tr><td class="k">地址</td><td>${this._esc(this.order.customerAddress || '—')}</td></tr>
-<tr><td class="k">业务员</td><td>${this._esc(this.order.salesName || '—')} ${this._esc(this.order.salesPhone || '')}</td></tr>
-<tr><td class="k">状态</td><td>${this.order.done ? '已完成' : '待处理'}</td></tr>
-</table>
-<h1 style="font-size:15px">时间轴</h1>
-${rows}
-</body></html>`);
-      w.document.close();
-      setTimeout(() => { w.print(); }, 400);
+    todoDone(id) {
+      const t = ((this.order && this.order.todos) || []).find(x => x.id === id);
+      return !!(t && t.done);
     },
-    _esc(s) {
-      return String(s).replace(/[&<>"']/g, c =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    async toggleTodo(id) {
+      try {
+        const r = await api('toggleTodo', { projNo: this.order.projNo, todoId: id, username: this.me });
+        this.order = r.order;
+        this._buildTimeline();
+      } catch (e) { this.say(e.message, 'err'); }
+    },
+
+    /* ---------- Sheet 导航（取消退回上一页） ---------- */
+    openSheet(name) { this.prevSheet = this.sheet; this.sheet = name; },
+    closeSheet() { this.sheet = this.prevSheet || ''; this.prevSheet = ''; },
+
+    /* ---------- 搜索 / 建档 ---------- */
+    openSearch() {
+      this.search = { dept:'sales', owner:this.me, projNo:'', msg:'', ok:false, found:null, chips:[] };
+      this.prevSheet = '';
+      this.sheet = 'search';
+    },
+    async doSearch() {
+      const projNo = this.search.projNo.trim();
+      if (!projNo) return;
+      this.busy = true; this.search.msg = ''; this.search.found = null;
+      try {
+        const r = await api('getQuoteInfo', { projNo, username: this.search.owner });
+        this.search.found = r.quote || {};
+        this.search.ok = true;
+        this.search.msg = '找到了 · 报价在 ' + this.nameOf(r.owner) + ' 手上';
+      } catch (e) { this.search.ok = false; this.search.msg = e.message; }
+      this.busy = false;
+    },
+    async createFromSearch() {
+      const projNo = this.search.projNo.trim();
+      this.busy = true;
+      try {
+        await api('getOrder', { projNo, username: this.me, role: this.myRole });
+        if (this.search.chips.length) {
+          await api('saveProfile', { projNo, username: this.me, profile: { chips: this.search.chips } });
+        }
+        this.closeSheet();
+        await this.openOrder(projNo);
+        await this.refreshInbox();
+      } catch (e) { this.say(e.message, 'err', 6000); }
+      this.busy = false;
+    },
+
+    /* ---------- 独立建单 ---------- */
+    openNewOrder() {
+      this.newOrder = { projNo:'', customerName:'', customerContact:'', customerAddress:'',
+        salesName:this.meName, salesPhone:'', chips:[], contactPrefs:[], type:'', content:'' };
+      this.prevSheet = '';
+      this.sheet = 'neworder';
+    },
+    async submitNewOrder() {
+      const o = this.newOrder;
+      this.busy = true;
+      try {
+        const r = await api('createStandalone', {
+          projNo: o.projNo.trim(), username: this.me,
+          customerName: o.customerName, customerContact: o.customerContact,
+          customerAddress: o.customerAddress, salesName: o.salesName, salesPhone: o.salesPhone
+        });
+        if (o.chips.length || o.contactPrefs.length) {
+          await api('saveProfile', { projNo: o.projNo.trim(), username: this.me,
+            profile: { chips:o.chips, contactPrefs:o.contactPrefs } });
+        }
+        if (o.content.trim() || o.type) {
+          await api('appendEvent', { projNo: o.projNo.trim(), username: this.me, role: this.myRole,
+            type: o.type || '沟通', content: o.content.trim() });
+        }
+        const pno = o.projNo.trim();
+        this.closeSheet();
+        await this.openOrder(pno);
+        await this.refreshInbox();
+      } catch (e) { this.say(e.message, 'err', 6000); }
+      this.busy = false;
     },
 
     /* ---------- 提交讯息 ---------- */
-    openCompose() {
-      this.form = {
-        projNo: this.order.projNo, type: '', content: '', replyChip: '',
-        photos: [], docs: [], dept: '', assignTo: '', done: false
-      };
+    openCompose(projNo) {
+      this.form = { projNo: projNo, type:'', content:'', replyChips:[], todoMode:false,
+        todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false };
+      this.prevSheet = this.sheet;
       this.sheet = 'compose';
-    },
-    useReply(r) {
-      this.form.replyChip = r;
-      this.form.content = this.form.content ? (this.form.content + ' ' + r) : r;
     },
     addReply() {
       const r = this.draftReply.trim();
@@ -1563,7 +1422,15 @@ ${rows}
       if (this.myReplies.indexOf(r) < 0) this.myReplies.push(r);
       localStorage.setItem('of_myreplies', JSON.stringify(this.myReplies));
       this.draftReply = ''; this.newReply = false;
-      this.useReply(r);
+      this.toggleIn(this.form.replyChips, r);
+    },
+    addType() {
+      const t = this.draftType.trim();
+      if (!t) return;
+      const list = (this.cfg.chipSets.types || (this.cfg.chipSets.types = {}))[this.myRole] || [];
+      if (list.indexOf(t) < 0) list.push(t);
+      this.form.type = t;
+      this.draftType = ''; this.newTypeFor = false;
     },
     async pickImages(e) {
       const files = Array.from(e.target.files || []);
@@ -1571,7 +1438,7 @@ ${rows}
       for (const f of files) {
         const c = await compressImage(f);
         const b64 = await readB64(c);
-        this.form.photos.push({ name: f.name, preview: URL.createObjectURL(c), data: b64, mime: 'image/jpeg' });
+        this.form.photos.push({ name: f.name, preview: URL.createObjectURL(c), data: b64 });
       }
     },
     async pickFiles(e) {
@@ -1579,7 +1446,7 @@ ${rows}
       e.target.value = '';
       for (const f of files) {
         const b64 = await readB64(f);
-        this.form.docs.push({ name: f.name, data: b64, mime: f.type || 'application/octet-stream' });
+        this.form.docs.push({ name: f.name, data: b64 });
       }
     },
     async submit() {
@@ -1595,80 +1462,156 @@ ${rows}
           const r = await api('uploadFile', { projNo: f.projNo, data: d.data, name: d.name });
           docs.push({ name: r.name, url: r.url, size: r.size });
         }
+        const todos = f.todos.map(t => t.trim()).filter(Boolean);
         await api('appendEvent', {
           projNo: f.projNo, username: this.me, role: this.myRole,
-          type: f.type || '沟通', replyChip: f.replyChip,
-          content: f.content.trim(),
+          type: f.type || '沟通', replyChips: f.replyChips,
+          content: f.content.trim(), todos: todos,
           photos: photos, docs: docs,
           evidenceNames: photos.concat(docs).map(x => x.name).join(','),
-          assignTo: f.assignTo, done: f.done
+          assignTo: f.remindTo,
+          participants: f.participants, participantDepts: f.depts,
+          done: f.done
         });
         this.say('记好了', '', 1800);
         this.closeSheet();
-        await this.openOrder(f.projNo);
+        if (this.sheet === 'order' || !this.sheet) await this.openOrder(f.projNo);
         await this.refreshInbox();
       } catch (e) { this.say(e.message, 'err', 6000); }
       this.busy = false;
     },
 
-    /* ---------- 设置 ---------- */
-    delReply(i) {
-      const r = this.cfg.chipSets.replies.slice();
-      r.splice(i, 1);
-      this.cfg.chipSets.replies = r;
+    /* ---------- 客户画像 ---------- */
+    openProfile() {
+      const p = (this.order && this.order.profile) || {};
+      this.formProfile = {
+        chips: (p.chips || []).slice(),
+        contactPrefs: (p.contactPrefs || (p.contactPref ? [p.contactPref] : [])).slice(),
+        note: p.note || ''
+      };
+      this.prevSheet = this.sheet;
+      this.sheet = 'profile';
     },
+    addProfileChip() {
+      const t = this.draftProfileChip.trim();
+      if (!t) return;
+      if (this.profileChipOptions.indexOf(t) < 0) this.cfg.chipSets.profileChips.push(t);
+      this.toggleIn(this.formProfile.chips, t);
+      this.draftProfileChip = ''; this.newProfileChip = false;
+    },
+    addContactPref() {
+      const t = this.draftContactPref.trim();
+      if (!t) return;
+      if (this.contactPrefOptions.indexOf(t) < 0) this.cfg.chipSets.contactPrefs.push(t);
+      this.toggleIn(this.formProfile.contactPrefs, t);
+      this.draftContactPref = ''; this.newContactPref = false;
+    },
+    async saveProfile() {
+      this.busy = true;
+      try {
+        const r = await api('saveProfile', { projNo: this.order.projNo, username: this.me, profile: this.formProfile });
+        this.order = r.order;
+        this.closeSheet();
+        this.say('画像存好了', '', 1800);
+        const c = await api('getConfig');
+        this.cfg = c;
+      } catch (e) { this.say(e.message, 'err', 6000); }
+      this.busy = false;
+    },
+
+    /* ---------- 铃铛 ---------- */
+    async loadNotifs() {
+      try {
+        const r = await api('notifications', { username: this.me });
+        const last = r.lastReadAt || '';
+        this.notifs = (r.items || []).map(x => Object.assign({}, x, { isNew: !last || String(x.at) > String(last) }));
+        this.notifUnread = r.unread || 0;
+      } catch (e) { /* 铃铛失败不影响主流程 */ }
+    },
+    async openBell() {
+      this.prevSheet = '';
+      this.sheet = 'bell';
+      await this.loadNotifs();
+      try { await api('readNotifications', { username: this.me }); } catch (e) {}
+      this.notifUnread = 0;
+    },
+    openNoti(n) { this.closeSheet(); this.openOrder(n.projNo); },
+
+    /* ---------- 设置 ---------- */
+    delReply(i) { this.cfg.chipSets.replies.splice(i, 1); },
     addReplyAdmin() {
-      const r = this.draftAdmin.trim();
-      if (!r) return;
-      if (r.length > 10) { this.say('最多 10 个字', 'err'); return; }
-      if (this.cfg.chipSets.replies.indexOf(r) < 0) this.cfg.chipSets.replies.push(r);
+      const t = this.draftAdmin.trim();
+      if (!t) return;
+      if (t.length > 10) { this.say('最多 10 个字', 'err'); return; }
+      if (this.cfg.chipSets.replies.indexOf(t) < 0) this.cfg.chipSets.replies.push(t);
       this.draftAdmin = '';
     },
+    delProfileChip(i) { this.cfg.chipSets.profileChips.splice(i, 1); },
+    delContactPref(i) { this.cfg.chipSets.contactPrefs.splice(i, 1); },
     delType(role, t) {
       const arr = this.cfg.chipSets.types[role] || [];
       this.cfg.chipSets.types[role] = arr.filter(x => x !== t);
     },
-    delProfileChip(i) { this.cfg.chipSets.profileChips.splice(i, 1); },
-    addProfileChip() {
-      const t = this.draftProfileChip.trim();
-      if (!t) return;
-      if (this.cfg.chipSets.profileChips.indexOf(t) < 0) this.cfg.chipSets.profileChips.push(t);
-      this.draftProfileChip = '';
-    },
-    delContactPref(i) { this.cfg.chipSets.contactPrefs.splice(i, 1); },
-    addContactPref() {
-      const t = this.draftContactPref.trim();
-      if (!t) return;
-      if (this.cfg.chipSets.contactPrefs.indexOf(t) < 0) this.cfg.chipSets.contactPrefs.push(t);
-      this.draftContactPref = '';
-    },
-    addType() {
-      const t = this.draftType.trim();
-      if (!t) return;
-      const role = this.addTypeFor;
-      const arr = this.cfg.chipSets.types[role] || (this.cfg.chipSets.types[role] = []);
-      if (arr.indexOf(t) < 0) arr.push(t);
-      this.draftType = ''; this.addTypeFor = '';
-    },
     setRole(username, role) {
       const u = this.cfg.users[username];
-      if (!u) return;
-      u.roles = role ? [role] : ['sales'];
+      if (u) u.roles = role ? [role] : ['sales'];
     },
     async saveChips() {
       this.busy = true;
       try {
-        await api('saveConfig', {
-          username: this.me,
-          users: this.cfg.users,
-          chipSets: this.cfg.chipSets
-        });
+        await api('saveConfig', { username: this.me, users: this.cfg.users, chipSets: this.cfg.chipSets });
         this.say('保存好了', '', 1800);
         this.closeSheet();
         const r = await api('getConfig');
         this.cfg = r;
       } catch (e) { this.say(e.message, 'err', 6000); }
       this.busy = false;
+    },
+
+    /* ---------- 打印 ---------- */
+    printFlow() {
+      if (!this.order) return;
+      const w = window.open('', '_blank');
+      if (!w) { this.say('浏览器挡住了弹窗，请允许后重试', 'err'); return; }
+      const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      const evs = (this.order.events || []).slice().reverse().map(e => `
+        <div style="padding:9px 0;border-bottom:1px solid #e5e5e5">
+          <div style="font-size:11px;color:#777">
+            ${new Date(e.at).toLocaleString('zh-CN')} · ${esc(e.author)}${e.type ? ' · ' + esc(e.type) : ''}
+            ${(e.replyChips||[]).map(c => ' · ' + esc(c)).join('')}
+            ${e.assignTo ? ' · 提醒 ' + esc(e.assignTo) : ''}
+          </div>
+          <div style="font-size:13px;margin-top:3px;white-space:pre-wrap">${esc(e.content || '')}</div>
+          ${(e.todos||[]).map(t => '<div style="font-size:12px">☐ ' + esc(t.text) + '</div>').join('')}
+          <div style="font-size:11px;color:#888;margin-top:3px">
+            ${(e.photos||[]).map(p => '📷' + esc(p.name)).join('  ')}
+            ${(e.docs||[]).map(d => '📎' + esc(d.name)).join('  ')}
+          </div>
+        </div>`).join('') || '<div style="color:#888;font-size:12px">（没有记录）</div>';
+
+      w.document.write(`<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>${esc(this.order.projNo)} 信息流</title><style>
+body{font-family:-apple-system,"PingFang SC",sans-serif;padding:26px;color:#111}
+h1{font-size:19px;margin:0 0 4px}
+.m{font-size:12px;color:#666;margin-bottom:16px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-bottom:16px}
+td{padding:4px 0;vertical-align:top}
+td.k{color:#777;width:78px}
+</style></head><body>
+<h1>Squirrel Care · 订单信息流</h1>
+<div class="m">${esc(this.order.projNo)} · ${esc(this.order.customerName)} · 打印于 ${this.stamp}</div>
+<table>
+<tr><td class="k">电话</td><td>${esc(this.order.customerContact || '—')}</td></tr>
+<tr><td class="k">地址</td><td>${esc(this.order.customerAddress || '—')}</td></tr>
+<tr><td class="k">业务员</td><td>${esc(this.order.salesName || '—')} ${esc(this.order.salesPhone || '')}</td></tr>
+<tr><td class="k">状态</td><td>${this.order.done ? '已完成' : '待处理'}</td></tr>
+</table>
+<h1 style="font-size:15px">时间轴</h1>
+${evs}
+</body></html>`);
+      w.document.close();
+      setTimeout(() => { w.print(); }, 400);
     }
   },
 
