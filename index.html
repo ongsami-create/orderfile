@@ -389,7 +389,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
             </div>
             <div class="i-l3">
               <span class="tag t" v-if="r.lastType">{{r.lastType}}</span>
-              <span class="tag r" v-for="c in (r.lastReplyChips||[])" :key="'r'+c">{{c}}</span>
+              <span class="tag r" v-for="c in (r.lastReplyChips||(r.lastReplyChip?[r.lastReplyChip]:[]))" :key="'r'+c">{{c}}</span>
               <span class="tag g" v-if="r.hasPhotos">🖼 {{r.lastPhotos}}</span>
               <span class="tag g" v-if="r.hasDocs">📎 {{r.lastDocs}}</span>
             </div>
@@ -1291,8 +1291,12 @@ createApp({
       const t = (this.cfg.chipSets || {}).types || {};
       return t[role] || [];
     },
-    habitChips(r) { return ((r && r.clientProfile) || {}).chips || []; },
-    contactChips(r) { return ((r && r.clientProfile) || {}).contactPrefs || []; },
+    // ⚠ 兜底两种字段名：clientProfile（后端索引行）/ profile（档案原字段）
+    habitChips(r) { const p = (r && (r.clientProfile || r.profile)) || {}; return p.chips || []; },
+    contactChips(r) {
+      const p = (r && (r.clientProfile || r.profile)) || {};
+      return p.contactPrefs || (p.contactPref ? [p.contactPref] : []);
+    },
     _hit(r, q) {
       const fields = [r.projNo, r.customerName, r.customerContact, r.salesName, r.lastAuthorName, r.assigneeName];
       for (let i = 0; i < fields.length; i++) {
