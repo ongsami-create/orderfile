@@ -637,6 +637,21 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
         </div>
 
         <div class="card">
+          <div class="hd">客户画像 · 习惯与偏好</div>
+          <div class="chipwrap">
+            <button class="chip mini p" v-for="c in profileChipOptions" :key="'ph'+c"
+                    :class="{on:form.chips.indexOf(c)>=0}" @click="toggleIn(form.chips,c)">{{c}}</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">客户画像 · 怎么联系他</div>
+          <div class="chipwrap">
+            <button class="chip mini c" v-for="c in contactPrefOptions" :key="'cc'+c"
+                    :class="{on:form.contactPrefs.indexOf(c)>=0}" @click="toggleIn(form.contactPrefs,c)">{{c}}</button>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="hd">参与协作的部门与人员</div>
           <div class="chipwrap">
             <button class="chip mini" v-for="d in deptList" :key="d.key"
@@ -1000,6 +1015,11 @@ function _unionChips_(base, extra) {
   return out;
 }
 
+/* mock 的待办勾选状态要跨调用保留。
+   以前 mockOrder() 每次都返回一份固定副本 → toggleTodo 永远返回 done=false，
+   测不出「连续点两次」的竞态（真后端是累计 toggle 的）。 */
+const MOCK_TODO_STATE = { t1: false, t2: true };
+
 function mockOrder(projNo) {
   const now = Date.now(), H = 3600000;
   return {
@@ -1010,8 +1030,8 @@ function mockOrder(projNo) {
     participants: ['JIA'], participantDepts: ['install'],
     profile: { chips: ['有小孩','洁癖','认死理'], contactPrefs: ['只能下午联系'], contactPref: '只能下午联系', note: '厨房不能有味，客户很在意。客厅要多一个储物位。' },
     todos: [
-      { id: 't1', text: '复量厨房台面高度', done: false, doneBy: '', doneAt: '' },
-      { id: 't2', text: '把手样品送到客户家', done: true, doneBy: 'SSD', doneAt: new Date(now-2*H).toISOString() }
+      { id: 't1', text: '复量厨房台面高度', done: !!MOCK_TODO_STATE.t1, doneBy: '', doneAt: '' },
+      { id: 't2', text: '把手样品送到客户家', done: !!MOCK_TODO_STATE.t2, doneBy: 'SSD', doneAt: new Date(now-2*H).toISOString() }
     ],
     lastRead: {},
     events: [
@@ -1079,7 +1099,7 @@ function mockApi(action, p) {
   }
   if (action === 'toggleTodo') {
     const o = mockOrder(p.projNo);
-    (o.todos||[]).forEach(t => { if (t.id === p.todoId) { t.done = !t.done; } });
+    (o.todos||[]).forEach(t => { if (t.id === p.todoId) { t.done = !t.done; MOCK_TODO_STATE[t.id] = t.done; } });
     return { ok:true, order:o };
   }
   if (action === 'createStandalone') {
@@ -1118,11 +1138,27 @@ async function apiOnce(action, params, timeoutMs) {
     return j;
   } finally { if (timer) clearTimeout(timer); }
 }
+/* ⚠ 写操作**不能自动重试**（2026-10-27 实测踩过）
+ *    超时 ≠ 服务器没执行。前端 20 秒超时后重发一次，
+ *    而服务器那边第一次其实已经在写了 → 同一条事件写了两遍
+ *    （用户反馈「从待处理新建，时间轴出现两个一样的」）。
+ *    写操作超时就告诉用户「可能已经存了，别重复提交」，让用户自己确认。 */
+const WRITE_ACTIONS = new Set([
+  'appendEvent', 'createStandalone', 'createOrder', 'uploadFile', 'saveProfile',
+  'toggleTodo', 'deleteOrder', 'saveConfig', 'submitConfirmation',
+  'addRequirement', 'invalidateConfirmations', 'markRead', 'readNotifications'
+]);
 async function api(action, params = {}) {
   if (MOCK) { await new Promise(r => setTimeout(r, 120)); return mockApi(action, params); }
   try { return await apiOnce(action, params); }
   catch (e) {
     if (!e || e.name !== 'AbortError') throw e;
+    if (WRITE_ACTIONS.has(action)) {
+      const err = new Error('服务器太慢，这次提交可能已经存进去了 —— 刷新看看，别重复提交。');
+      err.slow = true; err.mayHaveSucceeded = true;
+      throw err;
+    }
+    // 读操作重试是安全的（不会写数据）
     await new Promise(r => setTimeout(r, 900));
     try { return await apiOnce(action, params, 45000); }
     catch (e2) {
@@ -1388,9 +1424,15 @@ createApp({
     async openRow(r) {
       // 「待处理」里的报价还没建档 → 先填第一条信息，提交后才建档并转到跟进中
       if (this.tab === 'quotes' && !r.lastAt) {
+        // 预填报价里已有的画像（没有就空着，用户自己勾）
+        const qp = r.clientProfile || {};
         this.form = {
           projNo: r.projNo, type: '', content: '', replyChips: [], todoMode: false,
-          todos: [], photos: [], docs: [], remindTo: '', depts: [], participants: [], done: false
+          todos: [], photos: [], docs: [], remindTo: '', depts: [], participants: [], done: false,
+          chips: (qp.chips || []).slice(),
+          contactPrefs: (qp.contactPrefs || (qp.contactPref ? [qp.contactPref] : [])).slice(),
+          // 报价在谁手上 → 后端建档时只查那一个人的报价文件夹（快 5~8 秒）
+          quoteOwner: r.owner || this.quoteOwner || this.me
         };
         this.prevSheet = '';
         this.sheet = 'compose';
@@ -1433,12 +1475,31 @@ createApp({
       if (!t) return;
       const prev = t.done;
       t.done = !t.done;
+      t.doneBy = this.me;
+      t.doneAt = new Date().toISOString();
       this._buildTimeline();
+
+      // 版本号：同一张单的勾选请求按顺序回来。
+      // ⚠ 2026-10-27 实测踩过：原来这里把整个 order 换掉，
+      //    连续点两次时，先发的那次响应带着旧状态回来 → 把第二次的点击覆盖掉
+      //    （勾选跳回去，看起来像没反应 / 很慢）。
+      this._todoVer = this._todoVer || {};
+      const ver = (this._todoVer[id] || 0) + 1;
+      this._todoVer[id] = ver;
+
       try {
         const r = await api('toggleTodo', { projNo: this.order.projNo, todoId: id, username: this.me });
-        this.order = r.order;
+        if (this._todoVer[id] !== ver) return;      // 期间又点了 → 这次响应作废
+        // ⚠ 只合并服务端确认的**这一条**，不要整份替换 this.order
+        const remote = ((r && r.order && r.order.todos) || []).find(x => x.id === id);
+        if (remote) {
+          t.done = !!remote.done;
+          t.doneBy = remote.doneBy || '';
+          t.doneAt = remote.doneAt || '';
+        }
         this._buildTimeline();
       } catch (e) {
+        if (this._todoVer[id] !== ver) return;
         t.done = prev;                 // 存失败就回滚
         this._buildTimeline();
         this.say(e.message, 'err');
@@ -1559,8 +1620,13 @@ createApp({
 
     /* ---------- 提交讯息 ---------- */
     openCompose(projNo) {
+      // 预填这张单已有的画像（这里是往已有档案上加，不是从零建）
+      const p = (this.order && this.order.profile) || {};
       this.form = { projNo: projNo, type:'', content:'', replyChips:[], todoMode:false,
-        todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false };
+        todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false,
+        chips: (p.chips || []).slice(),
+        contactPrefs: (p.contactPrefs || (p.contactPref ? [p.contactPref] : [])).slice(),
+        quoteOwner: '' };
       this.prevSheet = this.sheet;
       this.sheet = 'compose';
     },
@@ -1614,6 +1680,10 @@ createApp({
         const todos = f.todos.map(t => t.trim()).filter(Boolean);
         await api('appendEvent', {
           projNo: f.projNo, username: this.me, role: this.myRole,
+          quoteOwner: f.quoteOwner || '',      // 后端建档时按这个定位报价（快很多）
+          // 客户画像一起存（后端跟报价里已有的画像取并集，只增不减）
+          profile: (f.chips.length || f.contactPrefs.length)
+            ? { chips: f.chips, contactPrefs: f.contactPrefs } : '',
           type: f.type || '沟通', replyChips: f.replyChips,
           content: f.content.trim(), todos: todos,
           photos: photos, docs: docs,
