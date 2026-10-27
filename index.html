@@ -96,7 +96,7 @@ input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
 .item{
   display:flex;align-items:flex-start;gap:10px;
   width:100%;text-align:left;padding:12px 15px 12px 22px;
-  border-bottom:.5px solid var(--sep);position:relative;
+  border-bottom:.5px solid var(--sep);position:relative;cursor:pointer;
 }
 .item:last-child{border-bottom:0}
 .item:active{background:#F7F7F9}
@@ -128,13 +128,20 @@ input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
   display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;
   background:#fff;border:1px solid rgba(60,60,67,.16);font-size:14.5px;font-weight:600;color:var(--ink);
 }
-.chip.on{color:#fff;border-color:transparent}
+.chip.on{background:var(--brand);color:#fff;border-color:transparent}
 .chip.on.p{background:var(--c-p)}
 .chip.on.c{background:var(--c-c)}
 .chip.on.t{background:var(--c-t)}
 .chip.on.r{background:var(--c-r)}
+.chip.on.fin{background:var(--green,#34c759)}
 .chip.mini{padding:6px 11px;font-size:13.5px}
 .chip.add{border-style:dashed;color:var(--muted)}
+/* 管理员删除按钮（列表右侧） */
+.del{
+  width:24px;height:24px;margin-top:5px;border-radius:6px;flex:0 0 auto;
+  color:var(--muted);font-size:13px;display:flex;align-items:center;justify-content:center;
+}
+.del:active{background:rgba(217,58,58,.14);color:var(--danger,#d93a3a)}
 .empty{text-align:center;padding:56px 24px;color:var(--muted);font-size:14.5px;line-height:1.7}
 .empty b{display:block;font-size:17px;color:var(--ink2);margin-bottom:8px;font-weight:700}
 
@@ -366,8 +373,9 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       </div>
 
       <div class="list" v-else-if="curList.length">
-        <button class="item" v-for="(r,i) in curList" :key="(r.projNo||'')+i"
-                :class="{fin:r.done}" @click="openRow(r)">
+        <div class="item" v-for="(r,i) in curList" :key="(r.projNo||'')+i"
+             :class="{fin:r.done}" role="button" tabindex="0"
+             @click="openRow(r)" @keydown.enter.self="openRow(r)">
           <span class="dot" v-if="r.unread && !r.done"></span>
           <div class="i-main">
             <div class="i-l1">
@@ -393,8 +401,9 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
           <div class="i-right" v-if="r.lastAt">
             <span class="who">{{r.lastAuthorName}}</span>
             <span class="tme">{{ago(r.lastAt)}}</span>
+            <button class="del" v-if="isAdmin" title="删除这张单" @click.stop="delOrder(r)">🗑</button>
           </div>
-        </button>
+        </div>
       </div>
 
       <div class="list" v-else style="padding:0">
@@ -655,7 +664,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
           <div class="hd">这条算不算办完了</div>
           <div class="chipwrap">
             <button class="chip" :class="{on:!form.done}" @click="form.done=false">跟进中</button>
-            <button class="chip" :class="{on:form.done}" @click="form.done=true">完成 ✓</button>
+            <button class="chip" :class="{on:form.done,fin:true}" @click="form.done=true">完成 ✓</button>
           </div>
         </div>
       </div>
@@ -700,12 +709,75 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
           </div>
         </div>
         <div class="card">
-          <div class="hd">第一条记录</div>
+          <div class="hd" style="display:flex;align-items:center;justify-content:space-between;padding-bottom:0">
+            <span>第一条记录</span>
+            <div class="btnrow" style="width:auto">
+              <button class="chip mini" :class="{on:!newOrder.todoMode}" @click="newOrder.todoMode=false">文字</button>
+              <button class="chip mini" :class="{on:newOrder.todoMode}" @click="newOrder.todoMode=true">勾选框</button>
+            </div>
+          </div>
           <div class="chipwrap">
             <button class="chip mini t" v-for="t in typeChips" :key="t"
                     :class="{on:newOrder.type===t}" @click="newOrder.type=t">{{t}}</button>
           </div>
-          <textarea class="field" v-model="newOrder.content" placeholder="写点什么（可留空）"></textarea>
+          <textarea class="field" v-if="!newOrder.todoMode" v-model="newOrder.content"
+                    placeholder="写点什么（可留空）"></textarea>
+          <div v-else style="padding:8px 15px 12px">
+            <div v-for="(t,i) in newOrder.todos" :key="i" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <span style="width:19px;height:19px;flex:0 0 auto;border-radius:6px;border:1.8px solid rgba(60,60,67,.3)"></span>
+              <input class="todoInput" v-model="newOrder.todos[i]" placeholder="要做的事">
+              <button class="linkbtn off" @click="newOrder.todos.splice(i,1)">×</button>
+            </div>
+            <button class="chip mini add" @click="newOrder.todos.push('')">＋ 加一条</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">照片 / 文件 · 可多选</div>
+          <div class="chipwrap">
+            <label class="chip mini">📷 选照片<input type="file" accept="image/*" multiple hidden @change="pickNewImages"></label>
+            <label class="chip mini">📎 选文件<input type="file" multiple hidden @change="pickNewFiles"></label>
+          </div>
+          <div style="padding:0 15px 13px" v-if="newOrder.photos.length">
+            <div class="thumbs"><img v-for="(p,i) in newOrder.photos" :key="i" :src="p.preview" :alt="p.name"></div>
+          </div>
+          <div style="padding:0 15px 13px" v-if="newOrder.docs.length">
+            <div class="tli-chips">
+              <span class="tag g" v-for="(d,i) in newOrder.docs" :key="i">📎 {{d.name}}
+                <button style="margin-left:6px;color:var(--danger);font-weight:700" @click="newOrder.docs.splice(i,1)">×</button>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">参与协作的部门与人员</div>
+          <div class="chipwrap">
+            <button class="chip mini" v-for="d in deptList" :key="d.key"
+                    :class="{on:newOrder.depts.indexOf(d.key)>=0}" @click="toggleIn(newOrder.depts,d.key)">{{d.label}}</button>
+          </div>
+          <div class="chipwrap" v-if="newOrder.depts.length" style="padding-top:0">
+            <button class="chip mini" v-for="u in usersOfDepts(newOrder.depts)" :key="u.username"
+                    :class="{on:newOrder.participants.indexOf(u.username)>=0}"
+                    @click="toggleIn(newOrder.participants,u.username)">{{u.displayName}}</button>
+          </div>
+          <p class="hint" v-if="newOrder.depts.length">勾选的人会在他们的「跟进中」列表里看到这张单。</p>
+        </div>
+
+        <div class="card">
+          <div class="hd">提醒谁跟进（只发提醒，不影响谁看得到）</div>
+          <select class="field" v-model="newOrder.remindTo">
+            <option value="">不提醒</option>
+            <option v-for="u in userList" :key="u.username" :value="u.username">{{u.displayName}} · {{roleList(u)}}</option>
+          </select>
+        </div>
+
+        <div class="card">
+          <div class="hd">这条算不算办完了</div>
+          <div class="chipwrap">
+            <button class="chip" :class="{on:!newOrder.done}" @click="newOrder.done=false">跟进中</button>
+            <button class="chip" :class="{on:newOrder.done,fin:true}" @click="newOrder.done=true">完成 ✓</button>
+          </div>
         </div>
       </div>
       <div class="sheet-ft">
@@ -913,9 +985,20 @@ const MOCK_USERS = {
   FSD: { displayName: 'STELLA', roles: ['admin', 'sales'] },
   JIA: { displayName: 'JIA', roles: ['install'] }
 };
-const MOCK_PROFILE_CHIPS = ['洁癖','不能抽烟','有小孩','有宠物','价格敏感','要求高','怕油烟','爱干净','老人同住','自己住','怕打扰','喜欢慢慢来','时间紧张','爱讨价还价','认死理','听设计师的','要自己拍板'];
-const MOCK_CONTACT_PREFS = ['微信','电话','WhatsApp','只能上午联系','只能下午联系','周末才能联系'];
-const MOCK_REPLIES = ['收到','已安排','明天再联系','客户已改口','待确认','已完工','客户不在','要再量'];
+/* 默认词库 —— 跟后端 Code.gs 的 DEFAULT_CHIP_SETS 保持一致。
+   ⚠️ 前端必须自己兜底：后端还没部署新版时，cfg.chipSets 里可能是空数组，
+   画像选择器就会一个 chip 都没有（2026-10-27 用户反馈 #1）。
+   ⚠️ mock 也用这份，保证 mock 和真后端逐条对得上。 */
+const DEFAULT_PROFILE_CHIPS = ['洁癖','不能抽烟','有小孩','有宠物','价格敏感','要求高','怕油烟','爱干净','老人同住','自己住','怕打扰','喜欢慢慢来','时间紧张','爱讨价还价','认死理','听设计师的','要自己拍板'];
+const DEFAULT_CONTACT_PREFS = ['微信','电话','WhatsApp','只能上午联系','只能下午联系','周末才能联系'];
+const DEFAULT_REPLIES = ['收到','已安排','明天再联系','客户已改口','待确认','已完工','已装柜','客户不在','要再量'];
+
+/** 数组并集：base 在前，extra 里多出来的接后面，去重 */
+function _unionChips_(base, extra) {
+  const out = (base || []).slice();
+  (extra || []).forEach(x => { if (x && out.indexOf(x) < 0) out.push(x); });
+  return out;
+}
 
 function mockOrder(projNo) {
   const now = Date.now(), H = 3600000;
@@ -950,9 +1033,9 @@ function mockApi(action, p) {
       logistics: ['发货','装柜','抵达','物流异常','注意事项'],
       install: ['现场问题','验收','注意事项']
     },
-    profileChips: MOCK_PROFILE_CHIPS.slice(),
-    contactPrefs: MOCK_CONTACT_PREFS.slice(),
-    replies: MOCK_REPLIES.slice()
+    profileChips: DEFAULT_PROFILE_CHIPS.slice(),
+    contactPrefs: DEFAULT_CONTACT_PREFS.slice(),
+    replies: DEFAULT_REPLIES.slice()
   };
   if (action === 'getConfig') {
     return { ok: true, version: 'v3', users, rosterCount: 4,
@@ -1141,10 +1224,18 @@ createApp({
       return '点右下角 ＋ 新建一个单，或去「待处理」挑一张报价。';
     },
     typeChips() { return this.typeChipsOf(this.myRole); },
-    profileChipOptions() { return (this.cfg.chipSets || {}).profileChips || []; },
-    contactPrefOptions() { return (this.cfg.chipSets || {}).contactPrefs || []; },
+    // ⚠ 默认词库和后端存的词库要**并集**，不是「非空就用已存的」。
+    //    线上 config.json 里 profileChips 只有 5 个、contactPrefs 只有 1 个
+    //    （老版本前端存下来的残缺词库）→ 画像选择器几乎没得选（用户反馈 #1）。
+    //    前端自己并一次 → 后端还没部署新版，也立刻有默认 chip。
+    profileChipOptions() {
+      return _unionChips_(DEFAULT_PROFILE_CHIPS, (this.cfg.chipSets || {}).profileChips);
+    },
+    contactPrefOptions() {
+      return _unionChips_(DEFAULT_CONTACT_PREFS, (this.cfg.chipSets || {}).contactPrefs);
+    },
     replies() {
-      const base = ((this.cfg.chipSets || {}).replies || []).slice();
+      const base = _unionChips_(DEFAULT_REPLIES, (this.cfg.chipSets || {}).replies);
       this.myReplies.forEach(r => { if (base.indexOf(r) < 0) base.push(r); });
       return base;
     },
@@ -1332,11 +1423,22 @@ createApp({
       return !!(t && t.done);
     },
     async toggleTodo(id) {
+      // 乐观更新：先本地改，后台再存 —— 勾选立刻有反馈，不用等 Drive 往返
+      const list = (this.order && this.order.todos) || [];
+      const t = list.find(x => x.id === id);
+      if (!t) return;
+      const prev = t.done;
+      t.done = !t.done;
+      this._buildTimeline();
       try {
         const r = await api('toggleTodo', { projNo: this.order.projNo, todoId: id, username: this.me });
         this.order = r.order;
         this._buildTimeline();
-      } catch (e) { this.say(e.message, 'err'); }
+      } catch (e) {
+        t.done = prev;                 // 存失败就回滚
+        this._buildTimeline();
+        this.say(e.message, 'err');
+      }
     },
 
     /* ---------- Sheet 导航（取消退回上一页） ---------- */
@@ -1379,9 +1481,27 @@ createApp({
     /* ---------- 独立建单 ---------- */
     openNewOrder() {
       this.newOrder = { projNo:'', customerName:'', customerContact:'', customerAddress:'',
-        salesName:this.meName, salesPhone:'', chips:[], contactPrefs:[], type:'', content:'' };
+        salesName:this.meName, salesPhone:'', chips:[], contactPrefs:[], type:'', content:'',
+        todoMode:false, todos:[], photos:[], docs:[], depts:[], participants:[], remindTo:'', done:false };
       this.prevSheet = '';
       this.sheet = 'neworder';
+    },
+    async pickNewImages(e) {
+      const files = Array.from(e.target.files || []);
+      e.target.value = '';
+      for (const f of files) {
+        const c = await compressImage(f);
+        const b64 = await readB64(c);
+        this.newOrder.photos.push({ name: f.name, preview: URL.createObjectURL(c), data: b64 });
+      }
+    },
+    async pickNewFiles(e) {
+      const files = Array.from(e.target.files || []);
+      e.target.value = '';
+      for (const f of files) {
+        const b64 = await readB64(f);
+        this.newOrder.docs.push({ name: f.name, data: b64 });
+      }
     },
     async submitNewOrder() {
       const o = this.newOrder;
@@ -1396,9 +1516,24 @@ createApp({
           await api('saveProfile', { projNo: o.projNo.trim(), username: this.me,
             profile: { chips:o.chips, contactPrefs:o.contactPrefs } });
         }
-        if (o.content.trim() || o.type) {
+        const photos = [], docs = [];
+        for (const p of o.photos) {
+          const up = await api('uploadFile', { projNo: o.projNo.trim(), data: p.data, name: p.name });
+          photos.push({ name: up.name, url: up.url, size: up.size });
+        }
+        for (const d of o.docs) {
+          const up = await api('uploadFile', { projNo: o.projNo.trim(), data: d.data, name: d.name });
+          docs.push({ name: up.name, url: up.url, size: up.size });
+        }
+        const todos = o.todos.map(t => t.trim()).filter(Boolean);
+        if (o.content.trim() || o.type || todos.length || photos.length || docs.length
+            || o.remindTo || o.participants.length) {
           await api('appendEvent', { projNo: o.projNo.trim(), username: this.me, role: this.myRole,
-            type: o.type || '沟通', content: o.content.trim() });
+            type: o.type || '沟通', content: o.content.trim(), todos: todos,
+            photos: photos, docs: docs,
+            evidenceNames: photos.concat(docs).map(x => x.name).join(','),
+            assignTo: o.remindTo, participants: o.participants, participantDepts: o.depts,
+            done: o.done });
         }
         const pno = o.projNo.trim();
         this.closeSheet();
@@ -1406,6 +1541,16 @@ createApp({
         await this.refreshInbox();
       } catch (e) { this.say(e.message, 'err', 6000); }
       this.busy = false;
+    },
+
+    /* ---------- 管理员删除 ---------- */
+    async delOrder(r) {
+      if (!window.confirm('确定删除 ' + r.projNo + ' 吗？\n（管理员操作，删除后档案进回收站，OrderFile 里会看不到）')) return;
+      try {
+        await api('deleteOrder', { projNo: r.projNo, username: this.me });
+        this.say('已删除 ' + r.projNo, '', 2000);
+        await this.refreshInbox();
+      } catch (e) { this.say(e.message, 'err', 6000); }
     },
 
     /* ---------- 提交讯息 ---------- */
