@@ -650,6 +650,10 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
                     :class="{on:form.contactPrefs.indexOf(c)>=0}" @click="toggleIn(form.contactPrefs,c)">{{c}}</button>
           </div>
         </div>
+        <div class="card">
+          <div class="hd">客户画像 · 补充说明</div>
+          <textarea class="field" v-model="form.note" placeholder="比如：厨房不能有味，客户很在意。客厅要多一个储物位。"></textarea>
+        </div>
 
         <div class="card">
           <div class="hd">参与协作的部门与人员</div>
@@ -719,8 +723,25 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
         <div class="card">
           <div class="hd">客户画像 · 怎么联系他</div>
           <div class="chipwrap">
-            <button class="chip mini c" v-for="c in contactPrefOptions" :key="'cc'+c"
+            <button class="chip mini c" v-for="c in contactPrefOptions" :key="'ncc'+c"
                     :class="{on:newOrder.contactPrefs.indexOf(c)>=0}" @click="toggleIn(newOrder.contactPrefs,c)">{{c}}</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">客户画像 · 补充说明</div>
+          <textarea class="field" v-model="newOrder.note" placeholder="比如：厨房不能有味，客户很在意。客厅要多一个储物位。"></textarea>
+        </div>
+        <div class="card">
+          <div class="hd">快捷回复 · 可多选</div>
+          <div class="chipwrap">
+            <button class="chip mini r" v-for="c in replies" :key="'nr'+c"
+                    :class="{on:newOrder.replyChips.indexOf(c)>=0}" @click="toggleIn(newOrder.replyChips,c)">{{c}}</button>
+            <button class="chip mini add" @click="newReply=true">＋ 自定义</button>
+          </div>
+          <div style="padding:0 15px 13px" v-if="newReply">
+            <input class="field" style="padding:10px 0;border-bottom:1px solid var(--sep)"
+                   v-model="draftReply" maxlength="10" placeholder="最多 10 个字" @keyup.enter="addReplyToNew">
+            <button class="linkbtn" style="margin-top:8px" @click="addReplyToNew">加入我的清单</button>
           </div>
         </div>
         <div class="card">
@@ -1215,9 +1236,9 @@ createApp({
       notifs: [], notifUnread: 0,
       busy: false, toast: '', toastKind: '', toastTimer: null,
       search: { dept:'sales', owner:'', projNo:'', msg:'', ok:false, found:null, chips:[] },
-      form: { projNo:'', type:'', content:'', replyChips:[], todoMode:false, todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false },
+      form: { projNo:'', type:'', content:'', replyChips:[], todoMode:false, todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false, note:'' },
       formProfile: { chips:[], contactPrefs:[], note:'' },
-      newOrder: { projNo:'', customerName:'', customerContact:'', customerAddress:'', salesName:'', salesPhone:'', chips:[], contactPrefs:[], type:'', content:'' },
+      newOrder: { projNo:'', customerName:'', customerContact:'', customerAddress:'', salesName:'', salesPhone:'', chips:[], contactPrefs:[], type:'', content:'', note:'', replyChips:[] },
       myReplies: [],
       newReply:false, draftReply:'', newTypeFor:false, draftType:'',
       newProfileChip:false, draftProfileChip:'', newContactPref:false, draftContactPref:'',
@@ -1431,6 +1452,7 @@ createApp({
           todos: [], photos: [], docs: [], remindTo: '', depts: [], participants: [], done: false,
           chips: (qp.chips || []).slice(),
           contactPrefs: (qp.contactPrefs || (qp.contactPref ? [qp.contactPref] : [])).slice(),
+          note: (qp.note || ''),
           // 报价在谁手上 → 后端建档时只查那一个人的报价文件夹（快 5~8 秒）
           quoteOwner: r.owner || this.quoteOwner || this.me
         };
@@ -1547,9 +1569,19 @@ createApp({
     openNewOrder() {
       this.newOrder = { projNo:'', customerName:'', customerContact:'', customerAddress:'',
         salesName:this.meName, salesPhone:'', chips:[], contactPrefs:[], type:'', content:'',
+        note:'', replyChips:[],
         todoMode:false, todos:[], photos:[], docs:[], depts:[], participants:[], remindTo:'', done:false };
       this.prevSheet = '';
       this.sheet = 'neworder';
+    },
+    addReplyToNew() {
+      const r = this.draftReply.trim();
+      if (!r) return;
+      if (r.length > 10) { this.say('最多 10 个字', 'err'); return; }
+      if (this.myReplies.indexOf(r) < 0) this.myReplies.push(r);
+      localStorage.setItem('of_myreplies', JSON.stringify(this.myReplies));
+      this.draftReply = ''; this.newReply = false;
+      this.toggleIn(this.newOrder.replyChips, r);
     },
     async pickNewImages(e) {
       const files = Array.from(e.target.files || []);
@@ -1577,9 +1609,9 @@ createApp({
           customerName: o.customerName, customerContact: o.customerContact,
           customerAddress: o.customerAddress, salesName: o.salesName, salesPhone: o.salesPhone
         });
-        if (o.chips.length || o.contactPrefs.length) {
+        if (o.chips.length || o.contactPrefs.length || o.note) {
           await api('saveProfile', { projNo: o.projNo.trim(), username: this.me,
-            profile: { chips:o.chips, contactPrefs:o.contactPrefs } });
+            profile: { chips:o.chips, contactPrefs:o.contactPrefs, note:o.note || '' } });
         }
         const photos = [], docs = [];
         for (const p of o.photos) {
@@ -1592,9 +1624,10 @@ createApp({
         }
         const todos = o.todos.map(t => t.trim()).filter(Boolean);
         if (o.content.trim() || o.type || todos.length || photos.length || docs.length
-            || o.remindTo || o.participants.length) {
+            || o.remindTo || o.participants.length || o.replyChips.length) {
           await api('appendEvent', { projNo: o.projNo.trim(), username: this.me, role: this.myRole,
             type: o.type || '沟通', content: o.content.trim(), todos: todos,
+            replyChips: o.replyChips,
             photos: photos, docs: docs,
             evidenceNames: photos.concat(docs).map(x => x.name).join(','),
             assignTo: o.remindTo, participants: o.participants, participantDepts: o.depts,
@@ -1626,6 +1659,7 @@ createApp({
         todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false,
         chips: (p.chips || []).slice(),
         contactPrefs: (p.contactPrefs || (p.contactPref ? [p.contactPref] : [])).slice(),
+        note: p.note || '',
         quoteOwner: '' };
       this.prevSheet = this.sheet;
       this.sheet = 'compose';
@@ -1642,9 +1676,17 @@ createApp({
     addType() {
       const t = this.draftType.trim();
       if (!t) return;
-      const list = (this.cfg.chipSets.types || (this.cfg.chipSets.types = {}))[this.myRole] || [];
+      // ⚠ 2026-10-27 修：在设置页给某个部门加 chip，要加到**那个部门自己**的清单。
+      //    原来无条件加到 types[myRole]（= 管理员）→ 在「业务员」下面加的 chip
+      //    跑到了「管理员」那一张卡里，看着像加错地方了（用户反馈）。
+      //    提交讯息时的「＋ 自定义」没有 addTypeFor → 还是加到自己角色的清单。
+      const role = (this.sheet === 'settings' && this.addTypeFor) ? this.addTypeFor : this.myRole;
+      const types = this.cfg.chipSets.types || (this.cfg.chipSets.types = {});
+      // ⚠ 原来写的是 `types[role] || []` —— 那个角色还没有清单时，
+      //    新建的数组没挂回对象上，chip 就丢了。必须用 || (x = [])。
+      const list = types[role] || (types[role] = []);
       if (list.indexOf(t) < 0) list.push(t);
-      this.form.type = t;
+      if (this.sheet !== 'settings') this.form.type = t;
       this.draftType = ''; this.newTypeFor = false;
     },
     async pickImages(e) {
@@ -1682,8 +1724,8 @@ createApp({
           projNo: f.projNo, username: this.me, role: this.myRole,
           quoteOwner: f.quoteOwner || '',      // 后端建档时按这个定位报价（快很多）
           // 客户画像一起存（后端跟报价里已有的画像取并集，只增不减）
-          profile: (f.chips.length || f.contactPrefs.length)
-            ? { chips: f.chips, contactPrefs: f.contactPrefs } : '',
+          profile: (f.chips.length || f.contactPrefs.length || f.note)
+            ? { chips: f.chips, contactPrefs: f.contactPrefs, note: f.note || '' } : '',
           type: f.type || '沟通', replyChips: f.replyChips,
           content: f.content.trim(), todos: todos,
           photos: photos, docs: docs,
@@ -1692,6 +1734,14 @@ createApp({
           participants: f.participants, participantDepts: f.depts,
           done: f.done
         });
+        // ⚠ 2026-10-27：客户画像**显式再存一次**。
+        //    旧版后端不认识 appendEvent 里的 profile 参数 → 画像会被丢掉
+        //    （用户反馈：填了画像，信息流里却没有）。
+        //    saveProfile 是并集合并，只增不减，多存一次没有副作用。
+        if (f.chips.length || f.contactPrefs.length || f.note) {
+          await api('saveProfile', { projNo: f.projNo, username: this.me,
+            profile: { chips: f.chips, contactPrefs: f.contactPrefs, note: f.note || '' } });
+        }
         this.say('记好了', '', 1800);
         this.closeSheet();
         if (this.sheet === 'order' || !this.sheet) await this.openOrder(f.projNo);
