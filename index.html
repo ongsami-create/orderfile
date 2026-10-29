@@ -637,25 +637,6 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
         </div>
 
         <div class="card">
-          <div class="hd">客户画像 · 习惯与偏好</div>
-          <div class="chipwrap">
-            <button class="chip mini p" v-for="c in profileChipOptions" :key="'ph'+c"
-                    :class="{on:form.chips.indexOf(c)>=0}" @click="toggleIn(form.chips,c)">{{c}}</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="hd">客户画像 · 怎么联系他</div>
-          <div class="chipwrap">
-            <button class="chip mini c" v-for="c in contactPrefOptions" :key="'cc'+c"
-                    :class="{on:form.contactPrefs.indexOf(c)>=0}" @click="toggleIn(form.contactPrefs,c)">{{c}}</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="hd">客户画像 · 补充说明</div>
-          <textarea class="field" v-model="form.note" placeholder="比如：厨房不能有味，客户很在意。客厅要多一个储物位。"></textarea>
-        </div>
-
-        <div class="card">
           <div class="hd">参与协作的部门与人员</div>
           <div class="chipwrap">
             <button class="chip mini" v-for="d in deptList" :key="d.key"
@@ -1120,7 +1101,14 @@ function mockApi(action, p) {
   }
   if (action === 'toggleTodo') {
     const o = mockOrder(p.projNo);
-    (o.todos||[]).forEach(t => { if (t.id === p.todoId) { t.done = !t.done; MOCK_TODO_STATE[t.id] = t.done; } });
+    (o.todos||[]).forEach(t => {
+      if (t.id !== p.todoId) return;
+      // ⚠ 跟真后端对齐：传 done 就是**目标状态**（幂等），不传才 toggle
+      if (p.done === true || p.done === 'true') t.done = true;
+      else if (p.done === false || p.done === 'false') t.done = false;
+      else t.done = !t.done;
+      MOCK_TODO_STATE[t.id] = t.done;
+    });
     return { ok:true, order:o };
   }
   if (action === 'createStandalone') {
@@ -1494,7 +1482,7 @@ createApp({
       // 乐观更新：先本地改，后台再存 —— 勾选立刻有反馈，不用等 Drive 往返
       const list = (this.order && this.order.todos) || [];
       const t = list.find(x => x.id === id);
-      if (!t) return;
+      if (!t) { this.say('这个待办项不在档案里，刷新一下', 'err'); return; }
       const prev = t.done;
       t.done = !t.done;
       t.doneBy = this.me;
@@ -1502,15 +1490,27 @@ createApp({
       this._buildTimeline();
 
       // 版本号：同一张单的勾选请求按顺序回来。
-      // ⚠ 2026-10-27 实测踩过：原来这里把整个 order 换掉，
-      //    连续点两次时，先发的那次响应带着旧状态回来 → 把第二次的点击覆盖掉
+      // ⚠ 2026-10-28 实测踩过：原来把整个 order 换掉，
+      //    连续点两次时先发的那次响应带着旧状态回来 → 把第二次的点击覆盖掉
       //    （勾选跳回去，看起来像没反应 / 很慢）。
       this._todoVer = this._todoVer || {};
       const ver = (this._todoVer[id] || 0) + 1;
       this._todoVer[id] = ver;
 
+      // ⚠⚠ 2026-10-28 实测踩过：请求必须**串行**发出去。
+      //    后端 toggleTodo 是「读档案 → 改一条 → 写整份档案」，
+      //    两个请求并发时后写的会把先写的勾选**冲掉**（读-改-写竞态）→
+      //    表现就是「一次只能勾选一个，第二个第三个反应不过来」，
+      //    而且退出再进来，第二个第三个还是旧状态（改动根本没存进去）。
+      //    排队保证到达顺序 = 发送顺序，不会互相覆盖。
+      const pno = this.order.projNo;
+      const target = t.done;              // 目标状态（不是 toggle）
+      this._todoChain = (this._todoChain || Promise.resolve()).catch(() => {});
+      this._todoChain = this._todoChain.then(() =>
+        api('toggleTodo', { projNo: pno, todoId: id, username: this.me, done: target ? 'true' : 'false' })
+      );
       try {
-        const r = await api('toggleTodo', { projNo: this.order.projNo, todoId: id, username: this.me });
+        const r = await this._todoChain;
         if (this._todoVer[id] !== ver) return;      // 期间又点了 → 这次响应作废
         // ⚠ 只合并服务端确认的**这一条**，不要整份替换 this.order
         const remote = ((r && r.order && r.order.todos) || []).find(x => x.id === id);
