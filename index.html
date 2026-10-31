@@ -636,6 +636,25 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
           </div>
         </div>
 
+        <div class="card" v-if="form.showProfile">
+          <div class="hd">客户画像 · 习惯与偏好</div>
+          <div class="chipwrap">
+            <button class="chip mini p" v-for="c in profileChipOptions" :key="'ph'+c"
+                    :class="{on:form.chips.indexOf(c)>=0}" @click="toggleIn(form.chips,c)">{{c}}</button>
+          </div>
+        </div>
+        <div class="card" v-if="form.showProfile">
+          <div class="hd">客户画像 · 怎么联系他</div>
+          <div class="chipwrap">
+            <button class="chip mini c" v-for="c in contactPrefOptions" :key="'cc'+c"
+                    :class="{on:form.contactPrefs.indexOf(c)>=0}" @click="toggleIn(form.contactPrefs,c)">{{c}}</button>
+          </div>
+        </div>
+        <div class="card" v-if="form.showProfile">
+          <div class="hd">客户画像 · 补充说明</div>
+          <textarea class="field" v-model="form.note" placeholder="比如：厨房不能有味，客户很在意。客厅要多一个储物位。"></textarea>
+        </div>
+
         <div class="card">
           <div class="hd">参与协作的部门与人员</div>
           <div class="chipwrap">
@@ -1224,7 +1243,7 @@ createApp({
       notifs: [], notifUnread: 0,
       busy: false, toast: '', toastKind: '', toastTimer: null,
       search: { dept:'sales', owner:'', projNo:'', msg:'', ok:false, found:null, chips:[] },
-      form: { projNo:'', type:'', content:'', replyChips:[], todoMode:false, todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false, note:'' },
+      form: { projNo:'', type:'', content:'', replyChips:[], todoMode:false, todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false, note:'', chips:[], contactPrefs:[], showProfile:false },
       formProfile: { chips:[], contactPrefs:[], note:'' },
       newOrder: { projNo:'', customerName:'', customerContact:'', customerAddress:'', salesName:'', salesPhone:'', chips:[], contactPrefs:[], type:'', content:'', note:'', replyChips:[] },
       myReplies: [],
@@ -1441,6 +1460,9 @@ createApp({
           chips: (qp.chips || []).slice(),
           contactPrefs: (qp.contactPrefs || (qp.contactPref ? [qp.contactPref] : [])).slice(),
           note: (qp.note || ''),
+          // ⚠ 「待处理」点报价弹出的输入栏 → **要**客户画像三栏
+          //    （信息流里「添加信息」的那张表 → 不要，用同一个 sheet，靠这个开关区分）
+          showProfile: true,
           // 报价在谁手上 → 后端建档时只查那一个人的报价文件夹（快 5~8 秒）
           quoteOwner: r.owner || this.quoteOwner || this.me
         };
@@ -1660,6 +1682,9 @@ createApp({
         chips: (p.chips || []).slice(),
         contactPrefs: (p.contactPrefs || (p.contactPref ? [p.contactPref] : [])).slice(),
         note: p.note || '',
+        // ⚠ 信息流里「添加信息」的那张表 → **不要**客户画像三栏（2026-10-28 用户要求）
+        //    画像在信息流的「客户画像 → 编辑」里改，不在这张表里改
+        showProfile: false,
         quoteOwner: '' };
       this.prevSheet = this.sheet;
       this.sheet = 'compose';
