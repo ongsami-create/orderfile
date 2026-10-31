@@ -211,6 +211,8 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
 .tli-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .tli-h b{font-size:14.5px;font-weight:700}
 .tli-h .t{font-size:12px;color:var(--muted);margin-left:auto}
+.tli-ops{display:flex;gap:12px;align-items:center}
+.tli-ops .linkbtn{font-size:12.5px;padding:2px 0}
 .tli-c{margin-top:6px;font-size:15px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .tli-a{margin-top:7px;font-size:12.5px;color:var(--brand);font-weight:600}
 .tli-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
@@ -515,7 +517,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
         </div>
 
         <div class="card">
-          <div class="hd">时间轴 · {{order.events.length}} 条</div>
+          <div class="hd">时间轴 · {{liveEventCount}} 条</div>
           <div class="tl">
             <template v-for="(ev,i) in timeline" :key="ev.id">
               <div v-if="ev.unreadMark" class="unread-div"><span>你上次看到这里</span></div>
@@ -524,6 +526,11 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
                   <b>{{nameOf(ev.author)}}</b>
                   <span class="tag t" v-if="ev.type">{{ev.type}}</span>
                   <span class="tag r" v-for="c in (ev.replyChips||[])" :key="'r'+c">{{c}}</span>
+                  <span class="tag g" v-if="ev.edited">已编辑</span>
+                  <span class="tli-ops" v-if="ev.author===me">
+                    <button class="linkbtn" @click="openEditEvent(ev)">编辑</button>
+                    <button class="linkbtn off" @click="delEvent(ev)">删除</button>
+                  </span>
                   <span class="t">{{ago(ev.at)}}</span>
                 </div>
                 <div class="tli-c" v-if="ev.content">{{ev.content}}</div>
@@ -549,7 +556,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
                 </div>
               </div>
             </template>
-            <div class="empty" style="padding:28px 0" v-if="!order.events.length">
+            <div class="empty" style="padding:28px 0" v-if="!liveEventCount">
               还没有任何记录。点下面「添加信息」写下第一条。
             </div>
           </div>
@@ -557,6 +564,32 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       </div>
       <div class="sheet-ft noprint">
         <button class="btn" :disabled="busy" @click="openCompose(order?order.projNo:'')">添加信息</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 编辑信息 ============ -->
+  <div class="mask" v-if="sheet==='editev'" @click.self="closeSheet">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <button class="linkbtn" @click="closeSheet">取消</button>
+        <h2 style="text-align:center">编辑信息</h2>
+        <span style="width:34px"></span>
+      </div>
+      <div class="sheet-bd" v-if="editEv">
+        <div class="card" style="margin-top:12px">
+          <div class="hd">{{editEv.projNo}} · {{nameOf(editEv.author)}} 发的</div>
+          <textarea class="field" v-model="editEv.content" placeholder="改这条信息的内容"></textarea>
+        </div>
+        <div class="card">
+          <div class="hd">会通知到谁</div>
+          <p class="hint">改完之后，铃铛里会出现「XX 已编辑 这个单号」的通知，别人一眼看得出这条被改过。</p>
+        </div>
+      </div>
+      <div class="sheet-ft">
+        <button class="btn" :disabled="busy || !editEv || !editEv.content.trim()" @click="saveEditEvent">
+          <span v-if="busy" class="spin"></span>保存修改
+        </button>
       </div>
     </div>
   </div>
@@ -887,9 +920,14 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
           <div class="noti" v-for="(n,i) in notifs" :key="i" :class="{unread:n.isNew}" @click="openNoti(n)">
             <span class="nd"></span>
             <span class="nb">
-              <b>{{n.authorName}}</b> 在 <b>{{n.projNo}}</b>
-              <template v-if="n.assignToName"> 提醒 <b>{{n.assignToName}}</b> 跟进</template>
-              <template v-else> 增加新的内容</template>
+              <b>{{n.authorName}}</b>
+              <template v-if="n.deleted"> 已删除 <b>{{n.projNo}}</b> 的一条信息</template>
+              <template v-else-if="n.edited"> 已编辑 <b>{{n.projNo}}</b> 的一条信息</template>
+              <template v-else>
+                在 <b>{{n.projNo}}</b>
+                <template v-if="n.assignToName"> 提醒 <b>{{n.assignToName}}</b> 跟进</template>
+                <template v-else> 增加新的内容</template>
+              </template>
               <span class="t">{{fmtTime(n.at)}}</span>
             </span>
           </div>
@@ -1130,6 +1168,17 @@ function mockApi(action, p) {
     });
     return { ok:true, order:o };
   }
+  if (action === 'editEvent') {
+    const o = mockOrder(p.projNo);
+    (o.events||[]).forEach(e => { if (e.id === p.eventId) { e.content = p.content || e.content; e.edited = true; } });
+    return { ok:true, order:o, eventId:p.eventId };
+  }
+  if (action === 'deleteEvent') {
+    const o = mockOrder(p.projNo);
+    (o.events||[]).forEach(e => { if (e.id === p.eventId) { e.deleted = true; e.content = ''; } });
+    o.events = (o.events||[]).filter(e => !e.deleted);
+    return { ok:true, order:o, eventId:p.eventId };
+  }
   if (action === 'createStandalone') {
     const o = mockOrder(p.projNo);
     o.customerName = p.customerName || o.customerName;
@@ -1139,7 +1188,9 @@ function mockApi(action, p) {
     const now = Date.now(), H = 3600000;
     return { ok:true, unread:2, lastReadAt:new Date(now-3*H).toISOString(), items:[
       { at:new Date(now-20*60000).toISOString(), projNo:'SSD09', customerName:'RAY ONG', author:'JUN', authorName:'JUN', type:'验收', assignTo:null, markDone:false },
-      { at:new Date(now-90*60000).toISOString(), projNo:'fsd17', customerName:'WIEW LI WAN', author:'FSD', authorName:'STELLA', type:'沟通', assignTo:'SSD', assignToName:'SAMI', markDone:false }
+      { at:new Date(now-90*60000).toISOString(), projNo:'fsd17', customerName:'WIEW LI WAN', author:'FSD', authorName:'STELLA', type:'沟通', assignTo:'SSD', assignToName:'SAMI', markDone:false },
+      { at:new Date(now-5*60000).toISOString(), projNo:'SSD09', customerName:'RAY ONG', author:'SSD', authorName:'SAMI', type:'沟通', markDone:false, edited:true },
+      { at:new Date(now-2*60000).toISOString(), projNo:'SSD09', customerName:'RAY ONG', author:'SSD', authorName:'SAMI', type:'沟通', markDone:false, deleted:true }
     ] };
   }
   if (action === 'readNotifications') return { ok:true, at:new Date().toISOString() };
@@ -1239,7 +1290,7 @@ createApp({
       inbox: { following:[], done:[] },
       quotes: [], quotesLoaded: false, quoteOwner: '', loadingQuotes: false,
       kw: '', searching: false,
-      order: null, timeline: [],
+      order: null, timeline: [], editEv: null,
       notifs: [], notifUnread: 0,
       busy: false, toast: '', toastKind: '', toastTimer: null,
       search: { dept:'sales', owner:'', projNo:'', msg:'', ok:false, found:null, chips:[] },
@@ -1315,7 +1366,12 @@ createApp({
     },
     cfgSlow() { return !!(this.cfgError && this.cfgError.indexOf('太慢') >= 0); },
     err() { return this.toastKind === 'err'; },
-    stamp() { return new Date().toLocaleString('zh-CN'); }
+    stamp() { return new Date().toLocaleString('zh-CN'); },
+    // 时间轴条数（不含被删除的）—— ⚠️ 必须在 computed 里，
+    // 放 methods 的话模板拿到的是函数本身，会显示成「FUNCTION () { [NATIVE CODE] }」
+    liveEventCount() {
+      return ((this.order && this.order.events) || []).filter(e => !e.deleted).length;
+    }
   },
 
   methods: {
@@ -1484,7 +1540,8 @@ createApp({
       this.busy = false;
     },
     _buildTimeline() {
-      const evs = (this.order && this.order.events) || [];
+      // ⚠ 2026-10-31：被删除的信息不在时间轴上显示
+      const evs = ((this.order && this.order.events) || []).filter(e => !e.deleted);
       const myRead = (this.order && this.order.lastRead && this.order.lastRead[this.me]) || '';
       this.timeline = evs.slice().reverse().map(e => ({
         id: e.id, at: e.at, author: e.author, type: e.type,
@@ -1493,6 +1550,7 @@ createApp({
         photos: e.photos || [], docs: e.docs || [],
         assignTo: e.assignTo, participants: e.participants || [],
         markDone: e.markDone,
+        edited: !!e.edited,          // ⚠ 少了这个字段，模板就看不到「已编辑」标记
         unreadMark: !!(myRead && e.at > myRead)
       }));
     },
@@ -1810,6 +1868,40 @@ createApp({
         const c = await api('getConfig');
         this.cfg = c;
       } catch (e) { this.say(e.message, 'err', 6000); }
+      this.busy = false;
+    },
+
+    /* ---------- 编辑 / 删除自己发的信息 ---------- */
+    openEditEvent(ev) {
+      this.editEv = { projNo: this.order.projNo, eventId: ev.id, content: ev.content || '', author: ev.author };
+      this.prevSheet = this.sheet;
+      this.sheet = 'editev';
+    },
+    async saveEditEvent() {
+      const e = this.editEv;
+      if (!e || !e.content.trim()) return;
+      this.busy = true;
+      try {
+        const r = await api('editEvent', { projNo: e.projNo, eventId: e.eventId, username: this.me, content: e.content.trim() });
+        this.order = r.order;
+        this._buildTimeline();
+        this.editEv = null;
+        this.closeSheet();
+        this.say('改好了', '', 1800);
+        this.loadNotifs();
+      } catch (err) { this.say(err.message, 'err', 6000); }
+      this.busy = false;
+    },
+    async delEvent(ev) {
+      if (!window.confirm('删掉这条信息？\n（删掉之后，铃铛里会显示「XX 已删除 这个单号」的通知）')) return;
+      this.busy = true;
+      try {
+        const r = await api('deleteEvent', { projNo: this.order.projNo, eventId: ev.id, username: this.me });
+        this.order = r.order;
+        this._buildTimeline();
+        this.say('删掉了', '', 1800);
+        this.loadNotifs();
+      } catch (err) { this.say(err.message, 'err', 6000); }
       this.busy = false;
     },
 
