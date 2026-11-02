@@ -1152,8 +1152,13 @@ function mockApi(action, p) {
   }
   if (action === 'appendEvent') {
     const o = mockOrder(p.projNo);
-    let ev = {};
-    try { ev = (typeof p === 'object' && p.events) ? p.events[0] : {}; } catch (e) {}
+    o.events = (o.events || []).concat([{
+      id: 'n' + Date.now(), at: new Date().toISOString(), author: p.username,
+      role: p.role || 'sales', type: p.type || '沟通', replyChips: p.replyChips || [],
+      content: p.content || '', todos: p.todos || [], photos: p.photos || [], docs: p.docs || [],
+      assignTo: p.assignTo || null, participants: p.participants || [],
+      participantDepts: p.participantDepts || [], markDone: !!p.done
+    }]);
     return { ok:true, order:o, eventId:'mock' };
   }
   if (action === 'toggleTodo') {
@@ -1167,6 +1172,22 @@ function mockApi(action, p) {
       MOCK_TODO_STATE[t.id] = t.done;
     });
     return { ok:true, order:o };
+  }
+  if (action === 'submitInfo') {
+    // ?oldbackend=1 → 模拟「后端还没升级」，用来测前端自动退回旧路径
+    if (location.search.indexOf('oldbackend=1') >= 0) throw new Error('Unknown action: submitInfo');
+    const o = mockOrder(p.projNo);
+    if (p.profile) {
+      try { o.profile = Object.assign({}, o.profile, JSON.parse(p.profile || '{}')); } catch (e) {}
+    }
+    o.events = (o.events || []).concat([{
+      id: 'n' + Date.now(), at: new Date().toISOString(), author: p.username,
+      role: p.role || 'sales', type: p.type || '沟通', replyChips: p.replyChips || [],
+      content: p.content || '', todos: p.todos || [], photos: p.photos || [], docs: p.docs || [],
+      assignTo: p.assignTo || null, participants: p.participants || [],
+      participantDepts: p.participantDepts || [], markDone: !!p.done
+    }]);
+    return { ok: true, order: o, eventId: 'mock', created: true };
   }
   if (action === 'editEvent') {
     const o = mockOrder(p.projNo);
@@ -1684,41 +1705,77 @@ createApp({
       const o = this.newOrder;
       this.busy = true;
       try {
-        const r = await api('createStandalone', {
-          projNo: o.projNo.trim(), username: this.me,
-          customerName: o.customerName, customerContact: o.customerContact,
-          customerAddress: o.customerAddress, salesName: o.salesName, salesPhone: o.salesPhone
-        });
-        if (o.chips.length || o.contactPrefs.length || o.note) {
-          await api('saveProfile', { projNo: o.projNo.trim(), username: this.me,
-            profile: { chips:o.chips, contactPrefs:o.contactPrefs, note:o.note || '' } });
-        }
-        const photos = [], docs = [];
-        for (const p of o.photos) {
-          const up = await api('uploadFile', { projNo: o.projNo.trim(), data: p.data, name: p.name });
-          photos.push({ name: up.name, url: up.url, size: up.size });
-        }
-        for (const d of o.docs) {
-          const up = await api('uploadFile', { projNo: o.projNo.trim(), data: d.data, name: d.name });
-          docs.push({ name: up.name, url: up.url, size: up.size });
-        }
         const todos = o.todos.map(t => t.trim()).filter(Boolean);
-        if (o.content.trim() || o.type || todos.length || photos.length || docs.length
-            || o.remindTo || o.participants.length || o.replyChips.length) {
-          await api('appendEvent', { projNo: o.projNo.trim(), username: this.me, role: this.myRole,
-            type: o.type || '沟通', content: o.content.trim(), todos: todos,
-            replyChips: o.replyChips,
-            photos: photos, docs: docs,
-            evidenceNames: photos.concat(docs).map(x => x.name).join(','),
-            assignTo: o.remindTo, participants: o.participants, participantDepts: o.depts,
-            done: o.done });
-        }
-        const pno = o.projNo.trim();
-        this.closeSheet();
-        await this.openOrder(pno);
-        await this.refreshInbox();
-      } catch (e) { this.say(e.message, 'err', 6000); }
+        await this._doSubmit_({
+          projNo: o.projNo.trim(), username: this.me, role: this.myRole,
+          standalone: true,
+          customerName: o.customerName, customerContact: o.customerContact,
+          customerAddress: o.customerAddress, salesName: o.salesName, salesPhone: o.salesPhone,
+          profile: (o.chips.length || o.contactPrefs.length || o.note)
+            ? { chips: o.chips, contactPrefs: o.contactPrefs, note: o.note || '' } : '',
+          type: o.type || '沟通', content: o.content.trim(), todos: todos,
+          replyChips: o.replyChips,
+          photos: o.photos.map(p => ({ name: p.name, data: p.data })),
+          docs: o.docs.map(d => ({ name: d.name, data: d.data })),
+          assignTo: o.remindTo, participants: o.participants, participantDepts: o.depts,
+          done: o.done
+        }, '建好了');
+      } catch (e) { this.say(e.message, 'err', 6000); this.busy = false; }
+    },
+
+    /* ---------- 提交（保存） ---------- */
+    async _doSubmit_(payload, msg) {
+      let r;
+      try {
+        // ⚠ 2026-11-02 提速：整条保存链合成**一次**后端调用。
+        //    以前是 uploadFile ×N → appendEvent → saveProfile → getOrder，
+        //    每次都是独立的 GAS 执行（各自冷启动 ~2 秒），实测一单要 14~28 秒。
+        r = await api('submitInfo', payload);
+      } catch (e) {
+        // ⚠ 后端还是旧版（不认识 submitInfo）→ 退回逐个调用，保证保存功能不坏
+        if (!/unknown action/i.test(String((e && e.message) || ''))) throw e;
+        r = await this._submitLegacy_(payload);
+      }
+      this.order = r.order;            // ← 响应里已经有档案，不用再调 getOrder
+      this._buildTimeline();
+      this.say(msg, '', 1800);
+      this.closeSheet();
+      if (this.sheet !== 'order') { this.prevSheet = ''; this.sheet = 'order'; }
       this.busy = false;
+      this.refreshInbox();              // 列表后台刷新，不挡住「已保存」
+    },
+
+    /** 旧后端兜底：逐个调用（慢，但保证能用） */
+    async _submitLegacy_(p) {
+      if (p.standalone) {
+        await api('createStandalone', {
+          projNo: p.projNo, username: p.username,
+          customerName: p.customerName, customerContact: p.customerContact,
+          customerAddress: p.customerAddress, salesName: p.salesName, salesPhone: p.salesPhone
+        });
+      }
+      const photos = [], docs = [];
+      for (const x of (p.photos || [])) {
+        const u = await api('uploadFile', { projNo: p.projNo, data: x.data, name: x.name });
+        photos.push({ name: u.name, url: u.url, size: u.size });
+      }
+      for (const x of (p.docs || [])) {
+        const u = await api('uploadFile', { projNo: p.projNo, data: x.data, name: x.name });
+        docs.push({ name: u.name, url: u.url, size: u.size });
+      }
+      const r = await api('appendEvent', {
+        projNo: p.projNo, username: p.username, role: p.role,
+        quoteOwner: p.quoteOwner || '', profile: p.profile || '',
+        type: p.type, replyChips: p.replyChips, content: p.content, todos: p.todos,
+        photos: photos, docs: docs,
+        evidenceNames: photos.concat(docs).map(x => x.name).join(','),
+        assignTo: p.assignTo, participants: p.participants, participantDepts: p.participantDepts,
+        done: p.done
+      });
+      if (p.profile) {
+        await api('saveProfile', { projNo: p.projNo, username: p.username, profile: p.profile });
+      }
+      return r;
     },
 
     /* ---------- 管理员删除 ---------- */
@@ -1793,17 +1850,8 @@ createApp({
       const f = this.form;
       this.busy = true;
       try {
-        const photos = [], docs = [];
-        for (const p of f.photos) {
-          const r = await api('uploadFile', { projNo: f.projNo, data: p.data, name: p.name });
-          photos.push({ name: r.name, url: r.url, size: r.size });
-        }
-        for (const d of f.docs) {
-          const r = await api('uploadFile', { projNo: f.projNo, data: d.data, name: d.name });
-          docs.push({ name: r.name, url: r.url, size: r.size });
-        }
         const todos = f.todos.map(t => t.trim()).filter(Boolean);
-        await api('appendEvent', {
+        await this._doSubmit_({
           projNo: f.projNo, username: this.me, role: this.myRole,
           quoteOwner: f.quoteOwner || '',      // 后端建档时按这个定位报价（快很多）
           // 客户画像一起存（后端跟报价里已有的画像取并集，只增不减）
@@ -1811,26 +1859,13 @@ createApp({
             ? { chips: f.chips, contactPrefs: f.contactPrefs, note: f.note || '' } : '',
           type: f.type || '沟通', replyChips: f.replyChips,
           content: f.content.trim(), todos: todos,
-          photos: photos, docs: docs,
-          evidenceNames: photos.concat(docs).map(x => x.name).join(','),
+          photos: f.photos.map(p => ({ name: p.name, data: p.data })),
+          docs: f.docs.map(d => ({ name: d.name, data: d.data })),
           assignTo: f.remindTo,
           participants: f.participants, participantDepts: f.depts,
           done: f.done
-        });
-        // ⚠ 2026-10-27：客户画像**显式再存一次**。
-        //    旧版后端不认识 appendEvent 里的 profile 参数 → 画像会被丢掉
-        //    （用户反馈：填了画像，信息流里却没有）。
-        //    saveProfile 是并集合并，只增不减，多存一次没有副作用。
-        if (f.chips.length || f.contactPrefs.length || f.note) {
-          await api('saveProfile', { projNo: f.projNo, username: this.me,
-            profile: { chips: f.chips, contactPrefs: f.contactPrefs, note: f.note || '' } });
-        }
-        this.say('记好了', '', 1800);
-        this.closeSheet();
-        if (this.sheet === 'order' || !this.sheet) await this.openOrder(f.projNo);
-        await this.refreshInbox();
-      } catch (e) { this.say(e.message, 'err', 6000); }
-      this.busy = false;
+        }, '记好了');
+      } catch (e) { this.say(e.message, 'err', 6000); this.busy = false; }
     },
 
     /* ---------- 客户画像 ---------- */
