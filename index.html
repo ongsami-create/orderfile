@@ -556,6 +556,14 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
         </div>
 
         <div class="card">
+          <div class="hd">连接诊断</div>
+          <div style="padding:0 15px 13px">
+            <button class="btn" style="width:100%" @click="testConn">测试连接（后端 + 公告系统）</button>
+            <pre class="diagpre" style="margin-top:10px" v-if="connTest">{{connTest}}</pre>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="hd">关于</div>
           <div class="kv"><span class="k">版本</span><span class="v">OrderFile 手机版 v{{appVer}}</span></div>
           <div class="kv"><span class="k">公告来源</span><span class="v">公司公告系统</span></div>
@@ -1448,6 +1456,18 @@ function mockApi(action, p) {
    * 公告后端 doGet 读 e.parameter → 用 GET 最省事，
    * 而且 GET 是「简单请求」，不会触发 CORS 预检。 */
 async function annApi(action, params) {
+  // ⭐ App 里同样走原生桥
+  const nb = _nativeBridge_();
+  if (!MOCK && nb && nb.httpGet) {
+    const qq = [];
+    qq.push('action=' + encodeURIComponent(action));
+    for (const k in (params || {})) {
+      const v = params[k];
+      if (v === undefined || v === null || v === '') continue;
+      qq.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(v)));
+    }
+    return _parseNative_(nb.httpGet(ANN_GAS_URL + '?' + qq.join('&')));
+  }
   if (MOCK) {
     await new Promise(r => setTimeout(r, 120));
     return { ok:true, announcements:[
@@ -1484,6 +1504,44 @@ async function annApi(action, params) {
 
 /* ---------- 请求层：超时 + 区分慢/断 ---------- */
 const API_TIMEOUT_MS = 20000;
+
+/** 原生桥（只有 Android App 里才有） */
+function _nativeBridge_() {
+  try { return (typeof window !== 'undefined' && window.OrderFileApp) ? window.OrderFileApp : null; }
+  catch (e) { return null; }
+}
+/** 手写 URL 编码 —— 不依赖 URLSearchParams（老 WebView 可能没有） */
+function _formBody_(pairs) {
+  const parts = [];
+  for (const k in pairs) {
+    const v = pairs[k];
+    if (v === undefined || v === null || v === '') continue;
+    parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : String(v)));
+  }
+  return parts.join('&');
+}
+/** 把原生桥返回的 JSON 字符串解析成 {ok,status,text} */
+function _parseNative_(raw) {
+  let r;
+  try { r = JSON.parse(raw); }
+  catch (e) { throw new Error('原生返回的不是 JSON：' + String(raw).slice(0, 200)); }
+  if (!r || r.ok === false) {
+    const err = new Error('原生通道失败：' + ((r && r.error) || '未知错误'));
+    err.name = 'TypeError';    // 归为网络层失败 → 读操作可以重试
+    err.native = true;
+    throw err;
+  }
+  if (r.status < 200 || r.status >= 300) {
+    const err = new Error('服务器返回 HTTP ' + r.status);
+    err.name = 'TypeError';
+    throw err;
+  }
+  let data;
+  try { data = JSON.parse(r.text); }
+  catch (e) { throw new Error('服务器返回的不是 JSON：' + String(r.text || '').slice(0, 200)); }
+  if (!data || data.ok === false) throw new Error((data && data.error) || '请求失败');
+  return data;
+}
 /** 自己造一个「超时」错误 —— 名字要跟 AbortError 一起被 api() 认出来 */
 function _timeoutErr_(ms) {
   const e = new Error('服务器响应太慢（等了 ' + Math.round(ms/1000) + ' 秒）');
@@ -1492,6 +1550,17 @@ function _timeoutErr_(ms) {
   return e;
 }
 async function apiOnce(action, params, timeoutMs) {
+  // ⭐ App 里走原生 HTTP 桥（WebView 的 fetch 到 GAS 会 Failed to fetch）
+  const nb = _nativeBridge_();
+  if (nb && nb.httpPost) {
+    const payload = Object.assign({ action: action }, params);
+    try {
+      return _parseNative_(nb.httpPost(GAS_URL, _formBody_(payload), 'application/x-www-form-urlencoded'));
+    } catch (e) {
+      if (e && e.native) throw e;
+      throw e;
+    }
+  }
   const fd = new FormData();
   fd.append('action', action);
   for (const k in params) {
@@ -1586,7 +1655,7 @@ createApp({
     return {
       logo: LOGO_URL, logoFail: false,
       cfgOk: false, cfgError: '', loading: false,
-      diag: '', diagOpen: false,
+      diag: '', diagOpen: false, connTest: '',
       cfg: { users:{}, roles:{}, chipSets:{ types:{}, profileChips:[], contactPrefs:[], replies:[] } },
       me: '', myRole: 'sales',
       loginUser: '', loginPass: '', loginErr: '',
@@ -1783,10 +1852,27 @@ createApp({
       L.push('UA: ' + navigator.userAgent);
       L.push('网络状态: ' + (navigator.onLine ? '在线' : '离线 navigator.onLine=false'));
       L.push('后端地址: ' + GAS_URL);
+      L.push('请求通道: ' + (_nativeBridge_() && _nativeBridge_().httpPost ? '原生 HTTP 桥（App）' : '浏览器 fetch'));
       L.push('错误类型: ' + ((e && e.name) || 'Error'));
       L.push('错误信息: ' + ((e && e.message) || String(e)));
       if (e && e.stack) L.push('调用栈: ' + String(e.stack).split('\n').slice(0,4).join(' | '));
       return L.join('\n');
+    },
+    /** 点一下就知道原生通道通不通 */
+    async testConn() {
+      this.connTest = '测试中…';
+      const nb = _nativeBridge_();
+      const lines = [];
+      if (nb && nb.testConnection) {
+        lines.push('通道: 原生 HTTP 桥（App）');
+        lines.push('后端 ' + GAS_URL + ' → ' + nb.testConnection(GAS_URL + '?action=health'));
+        lines.push('公告 ' + ANN_GAS_URL + ' → ' + nb.testConnection(ANN_GAS_URL + '?action=health'));
+      } else {
+        lines.push('通道: 浏览器 fetch（不在 App 里）');
+        lines.push('后端 → ' + GAS_URL);
+        lines.push('公告 → ' + ANN_GAS_URL);
+      }
+      this.connTest = lines.join('\n');
     },
     async copyDiag() {
       const txt = (this.diag || '没有诊断信息') + '\n\n--- OrderFile ' + (this.appVer || '') + ' ---';
