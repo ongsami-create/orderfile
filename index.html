@@ -1527,10 +1527,17 @@ async function api(action, params = {}) {
   if (MOCK) { await new Promise(r => setTimeout(r, 120)); return mockApi(action, params); }
   try { return await apiOnce(action, params); }
   catch (e) {
-    if (!e || (e.name !== 'AbortError' && e.name !== 'TimeoutError')) throw e;
+    // 要重试的两种：超时（TimeoutError/AbortError）+ 网络层失败（TypeError）
+    const isTimeout = e && (e.name === 'AbortError' || e.name === 'TimeoutError');
+    const isNetErr  = e && e.name === 'TypeError';
+    if (!isTimeout && !isNetErr) throw e;
     if (WRITE_ACTIONS.has(action)) {
-      const err = new Error('服务器太慢，这次提交可能已经存进去了 —— 刷新看看，别重复提交。');
-      err.slow = true; err.mayHaveSucceeded = true;
+      // ⚠ 写操作**绝不重试**（超时不等于没执行，重发会写两遍）
+      //    网络断了也不能假设「没发出去」—— 请求可能已经到服务器了。
+      const err = new Error(isTimeout
+        ? '服务器太慢，这次提交可能已经存进去了 —— 刷新看看，别重复提交。'
+        : '网络断了，这次提交不一定成功 —— 刷新看看，别重复提交。');
+      err.slow = isTimeout; err.mayHaveSucceeded = true;
       throw err;
     }
     // 读操作重试是安全的（不会写数据）
