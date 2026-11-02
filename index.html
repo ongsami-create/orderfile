@@ -265,6 +265,13 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
 .av{width:44px;height:44px;border-radius:50%;margin:0 auto 8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800}
 .pcard .nm{font-size:13.5px;font-weight:700;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pcard .rl{font-size:11px;color:var(--muted);display:block;margin-top:3px;line-height:1.35}
+/* 登录表单（账号 + 密码） */
+.lgbox{width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px}
+.lgin{background:var(--card);border:1px solid var(--sep);border-radius:12px;padding:13px 15px;font-size:16px;box-shadow:var(--sh);margin:0}
+.lgin:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px rgba(31,182,196,.12)}
+.lgbtn{margin-top:4px;padding:13px;font-size:16px;font-weight:700}
+.lgerr{margin:2px 0 0;font-size:13px;color:var(--danger,#d93a3a);text-align:center;line-height:1.5}
+.lghint{margin:8px 0 0;font-size:12px;color:var(--muted);text-align:center;line-height:1.7}
 .errcard{background:var(--card);border-radius:var(--r);padding:22px 18px;text-align:center;box-shadow:var(--sh);max-width:420px;width:100%}
 .errcard p{margin:10px 0 0;font-size:13.5px;color:var(--muted);line-height:1.6}
 .errcard .btn{margin-top:16px;padding:11px}
@@ -303,12 +310,17 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       <h1>OrderFile</h1>
       <p>客户订单信息流 · 交接不断，信息不丢</p>
     </div>
-    <div class="people" v-if="cfgOk">
-      <button class="pcard" v-for="u in userList" :key="u.username" @click="login(u.username)">
-        <span class="av">{{initials(u.displayName)}}</span>
-        <span class="nm">{{u.displayName}}</span>
-        <span class="rl">{{roleList(u)}}</span>
+    <div class="lgbox" v-if="cfgOk">
+      <input class="field lgin" v-model="loginUser" placeholder="账号（工号，例如 SSD）"
+             autocomplete="username" autocapitalize="characters" autocorrect="off" spellcheck="false"
+             @keyup.enter="doLogin">
+      <input class="field lgin" type="password" v-model="loginPass" placeholder="密码"
+             autocomplete="current-password" @keyup.enter="doLogin">
+      <button class="btn lgbtn" :disabled="busy || !loginUser.trim() || !loginPass" @click="doLogin">
+        <span v-if="busy" class="spin"></span>登入
       </button>
+      <p class="lgerr" v-if="loginErr">{{loginErr}}</p>
+      <p class="lghint">跟报价系统同一套账号密码<br>忘记密码 → 找管理员在「管理后台 → 人员管理」里改</p>
     </div>
     <div class="errcard" v-else>
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" :stroke="loading ? 'var(--brand)' : (cfgSlow ? 'var(--orange,#c8811f)' : 'var(--danger,#d93a3a)')" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -1064,11 +1076,12 @@ const DEPT_LIST = [
    ============================================================ */
 const MOCK = location.search.indexOf('mock=1') >= 0;
 const MOCK_USERS = {
-  SSD: { displayName: 'SAMI', roles: ['sales'] },
-  PSD: { displayName: 'PEGGY', roles: ['sales'] },
-  FSD: { displayName: 'STELLA', roles: ['admin', 'sales'] },
-  JIA: { displayName: 'JIA', roles: ['install'] }
+  SSD: { displayName: 'SAMI', roles: ['sales'], password: '123456' },
+  PSD: { displayName: 'PEGGY', roles: ['sales'], password: '123456' },
+  FSD: { displayName: 'STELLA', roles: ['admin', 'sales'], password: '123456' },
+  JIA: { displayName: 'JIA', roles: ['install'], password: '123456' }
 };
+const MOCK_PASSWORD = '123456';
 /* 默认词库 —— 跟后端 Code.gs 的 DEFAULT_CHIP_SETS 保持一致。
    ⚠️ 前端必须自己兜底：后端还没部署新版时，cfg.chipSets 里可能是空数组，
    画像选择器就会一个 chip 都没有（2026-10-27 用户反馈 #1）。
@@ -1112,7 +1125,10 @@ function mockOrder(projNo) {
 }
 function mockApi(action, p) {
   const users = {};
-  Object.keys(MOCK_USERS).forEach(k => { users[k] = MOCK_USERS[k]; });
+  Object.keys(MOCK_USERS).forEach(k => {
+    // ⚠ 密码**不能**给到前端（真后端的 getDetailedUsers 也故意不给）
+    users[k] = { displayName: MOCK_USERS[k].displayName, roles: MOCK_USERS[k].roles };
+  });
   const chipSets = {
     types: {
       admin: ['沟通','问题','变更','注意事项','确认'],
@@ -1126,6 +1142,12 @@ function mockApi(action, p) {
     contactPrefs: DEFAULT_CONTACT_PREFS.slice(),
     replies: DEFAULT_REPLIES.slice()
   };
+  if (action === 'login') {
+    const u = MOCK_USERS[p.username];
+    if (!u || u.password !== p.password) return { ok: false, error: '账号或密码不对' };
+    if (u.roles && u.roles.indexOf('admin') < 0 && p.username === 'NOPE') return { ok: false, error: '账号已被冻结，请找管理员' };
+    return { ok: true, username: u.username || p.username, displayName: u.displayName, roles: u.roles || [] };
+  }
   if (action === 'getConfig') {
     return { ok: true, version: 'v3', users, rosterCount: 4,
       roles: { admin:'管理员', sales:'业务员', design:'设计师', order:'下单员', logistics:'物流', install:'安装员' },
@@ -1316,6 +1338,7 @@ createApp({
       cfgOk: false, cfgError: '', loading: false,
       cfg: { users:{}, roles:{}, chipSets:{ types:{}, profileChips:[], contactPrefs:[], replies:[] } },
       me: '', myRole: 'sales',
+      loginUser: '', loginPass: '', loginErr: '',
       view: 'login', sheet: '', prevSheet: '',
       tab: 'following',
       inbox: { following:[], done:[] },
@@ -1473,12 +1496,11 @@ createApp({
         this.myReplies = JSON.parse(localStorage.getItem('of_myreplies') || '[]');
         this.cfgOk = (r.rosterCount || 0) > 0;
         if (!this.cfgOk) this.cfgError = '后端连上了，但人员名册是空的（0 个人）。';
-        const last = localStorage.getItem('of_user');
-        if (this.cfgOk && last && (r.users || {})[last]) {
-          this.me = last; this._syncRole_(last);
-          this.view = 'home';
-          await this.refreshInbox();
-        }
+        // ⚠ 2026-11-02：改成账号+密码登录后**不再自动登入**
+        //    （用户拍板：每次都要输密码，只记住账号）。
+        //    这里只把上次的账号填好，省得每次手打。
+        this.loginUser = localStorage.getItem('of_user') || '';
+        this.view = 'login';
       } catch (e) {
         this.cfgError = (e && e.slow)
           ? '服务器响应太慢，不是断了。点「再试一次」，第二次通常就快了。'
@@ -1494,16 +1516,35 @@ createApp({
       this.myRole = (saved && roles.indexOf(saved) >= 0) ? saved : prefer;
       localStorage.setItem('of_role', this.myRole);
     },
-    async login(username) {
-      this.me = username;
-      localStorage.setItem('of_user', username);
-      this._syncRole_(username);
-      this.view = 'home';
-      await this.refreshInbox();
+    async doLogin() {
+      const u = this.loginUser.trim();
+      const p = this.loginPass;
+      if (!u || !p) return;
+      this.busy = true;
+      this.loginErr = '';
+      try {
+        const r = await api('login', { username: u, password: p });
+        if (!r || !r.ok) {
+          this.loginErr = (r && r.error) || '账号或密码不对';
+          this.loginPass = '';
+          return;
+        }
+        this.me = r.username || u;
+        localStorage.setItem('of_user', this.me);   // ⚠ 只记住账号，**不存密码**
+        this._syncRole_(this.me);
+        this.view = 'home';
+        this.loginPass = '';
+        await this.refreshInbox();
+      } catch (e) {
+        this.loginErr = (e && e.message) || '登不进去，检查一下网络';
+        this.loginPass = '';
+      }
+      this.busy = false;
     },
     async logout() {
-      localStorage.removeItem('of_user');
+      // ⚠ of_user 只存账号（预填用），**不存密码** → 登出后账号还留着，密码要重输
       this.me = ''; this.order = null; this.sheet = ''; this.view = 'login';
+      this.loginPass = ''; this.loginErr = '';
       await this.boot();
     },
 
