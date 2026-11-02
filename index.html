@@ -1488,7 +1488,7 @@ async function annApi(action, params) {
     q.set(k, String(v));
   }
   // ⚠ 同样不要传 signal（Android WebView 的坑，见 apiOnce 的注释）
-  const req = fetch(ANN_GAS_URL + '?' + q.toString());
+  const req = fetch(ANN_GAS_URL + '?' + q.toString(), { credentials:'omit' });
   let timer = null;
   const guard = new Promise((_, rej) => { timer = setTimeout(() => rej(_timeoutErr_(15000)), 15000); });
   try {
@@ -1506,6 +1506,7 @@ async function annApi(action, params) {
 const API_TIMEOUT_MS = 20000;
 
 /** 原生桥（只有 Android App 里才有） */
+let _lastNativeErr_ = '';
 function _nativeBridge_() {
   try { return (typeof window !== 'undefined' && window.OrderFileApp) ? window.OrderFileApp : null; }
   catch (e) { return null; }
@@ -1557,8 +1558,9 @@ async function apiOnce(action, params, timeoutMs) {
     try {
       return _parseNative_(nb.httpPost(GAS_URL, _formBody_(payload), 'application/x-www-form-urlencoded'));
     } catch (e) {
-      if (e && e.native) throw e;
-      throw e;
+      if (!e || !e.native) throw e;
+      // 原生失败 → 记下来，继续试 fetch（双通道）
+      _lastNativeErr_ = e.message || String(e);
     }
   }
   const fd = new FormData();
@@ -1571,7 +1573,11 @@ async function apiOnce(action, params, timeoutMs) {
   // ⚠⚠️ **绝对不要传 signal** —— Android WebView 的 fetch + AbortSignal 会抛 AbortError，
   //    结果就是「连不上服务器」（手机浏览器版却正常，非常难查）。
   //    超时用 Promise.race 自己实现。
-  const req = fetch(GAS_URL, { method:'POST', body:fd });
+  // ⚠ credentials:'omit' —— 不带 cookie。
+  //    带凭证的跨域请求，浏览器要求响应是「具体的 origin + Allow-Credentials」，
+  //    而 GAS 返回的是 Access-Control-Allow-Origin: * → 会被判成 CORS 失败。
+  //    保险起见一律不带凭证。
+  const req = fetch(GAS_URL, { method:'POST', body:fd, credentials:'omit' });
   const limit = timeoutMs || API_TIMEOUT_MS;
   let timer = null;
   const guard = new Promise((_, rej) => { timer = setTimeout(() => rej(_timeoutErr_(limit)), limit); });
@@ -1853,6 +1859,7 @@ createApp({
       L.push('网络状态: ' + (navigator.onLine ? '在线' : '离线 navigator.onLine=false'));
       L.push('后端地址: ' + GAS_URL);
       L.push('请求通道: ' + (_nativeBridge_() && _nativeBridge_().httpPost ? '原生 HTTP 桥（App）' : '浏览器 fetch'));
+      if (_lastNativeErr_) L.push('原生通道错误: ' + _lastNativeErr_);
       L.push('错误类型: ' + ((e && e.name) || 'Error'));
       L.push('错误信息: ' + ((e && e.message) || String(e)));
       if (e && e.stack) L.push('调用栈: ' + String(e.stack).split('\n').slice(0,4).join(' | '));
@@ -1864,13 +1871,19 @@ createApp({
       const nb = _nativeBridge_();
       const lines = [];
       if (nb && nb.testConnection) {
-        lines.push('通道: 原生 HTTP 桥（App）');
+        lines.push('【通道1 · 原生 HTTP 桥】');
         lines.push('后端 ' + GAS_URL + ' → ' + nb.testConnection(GAS_URL + '?action=health'));
         lines.push('公告 ' + ANN_GAS_URL + ' → ' + nb.testConnection(ANN_GAS_URL + '?action=health'));
-      } else {
-        lines.push('通道: 浏览器 fetch（不在 App 里）');
-        lines.push('后端 → ' + GAS_URL);
-        lines.push('公告 → ' + ANN_GAS_URL);
+        lines.push('');
+      }
+      lines.push('【通道2 · 网页 fetch】');
+      try {
+        const t0 = Date.now();
+        const r = await fetch(GAS_URL + '?action=health', { credentials:'omit' });
+        const t = await r.text();
+        lines.push('后端 → HTTP ' + r.status + '  ' + (Date.now()-t0) + 'ms  ' + t.slice(0, 120));
+      } catch (e) {
+        lines.push('后端 → ❌ ' + ((e && e.message) || e));
       }
       this.connTest = lines.join('\n');
     },
