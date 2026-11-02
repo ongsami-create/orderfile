@@ -307,6 +307,14 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
 .lgin{background:var(--card);border:1px solid var(--sep);border-radius:12px;padding:13px 15px;font-size:16px;box-shadow:var(--sh);margin:0}
 .lgin:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px rgba(31,182,196,.12)}
 .lgbtn{margin-top:4px;padding:13px;font-size:16px;font-weight:700}
+.diagbox{margin-top:12px;text-align:left}
+.diagrow{display:flex;gap:14px;justify-content:center;margin-bottom:6px}
+.diagpre{
+  background:rgba(255,255,255,.7);border:.5px solid var(--sep);border-radius:10px;
+  padding:10px 12px;font-size:11px;line-height:1.6;color:var(--ink2);
+  white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;text-align:left;
+  -webkit-user-select:text;user-select:text;
+}
 .lgerr{margin:2px 0 0;font-size:13px;color:var(--danger,#d93a3a);text-align:center;line-height:1.5}
 .lghint{margin:8px 0 0;font-size:12px;color:var(--muted);text-align:center;line-height:1.7}
 .errcard{background:var(--card);border-radius:var(--r);padding:22px 18px;text-align:center;box-shadow:var(--sh);max-width:420px;width:100%}
@@ -372,6 +380,13 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       <button class="btn" :disabled="busy" @click="boot">
         <span v-if="busy" class="spin"></span>{{ loading ? '连接中' : '再试一次' }}
       </button>
+      <div class="diagbox" v-if="cfgError">
+        <div class="diagrow">
+          <button class="linkbtn" @click="diagOpen=!diagOpen">{{diagOpen ? '收起技术详情' : '看技术详情'}}</button>
+          <button class="linkbtn" @click="copyDiag">复制诊断</button>
+        </div>
+        <pre class="diagpre" v-if="diagOpen">{{diag}}</pre>
+      </div>
     </div>
   </div>
 
@@ -1452,21 +1467,30 @@ async function annApi(action, params) {
     if (v === undefined || v === null || v === '') continue;
     q.set(k, String(v));
   }
-  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(() => ctrl.abort(), 15000) : null;
+  // ⚠ 同样不要传 signal（Android WebView 的坑，见 apiOnce 的注释）
+  const req = fetch(ANN_GAS_URL + '?' + q.toString());
+  let timer = null;
+  const guard = new Promise((_, rej) => { timer = setTimeout(() => rej(_timeoutErr_(15000)), 15000); });
   try {
-    const r = await fetch(ANN_GAS_URL + '?' + q.toString(), { signal: ctrl ? ctrl.signal : undefined });
+    const r = await Promise.race([req, guard]);
     const j = await r.json();
     if (!j || j.ok === false) throw new Error((j && j.error) || '读不到公告');
     return j;
   } catch (e) {
-    if (e && e.name === 'AbortError') throw new Error('公告系统响应太慢');
+    if (e && (e.name === 'AbortError' || e.name === 'TimeoutError')) throw new Error('公告系统响应太慢');
     throw e;
   } finally { if (timer) clearTimeout(timer); }
 }
 
 /* ---------- 请求层：超时 + 区分慢/断 ---------- */
 const API_TIMEOUT_MS = 20000;
+/** 自己造一个「超时」错误 —— 名字要跟 AbortError 一起被 api() 认出来 */
+function _timeoutErr_(ms) {
+  const e = new Error('服务器响应太慢（等了 ' + Math.round(ms/1000) + ' 秒）');
+  e.name = 'TimeoutError';
+  e.slow = true;
+  return e;
+}
 async function apiOnce(action, params, timeoutMs) {
   const fd = new FormData();
   fd.append('action', action);
@@ -1475,10 +1499,15 @@ async function apiOnce(action, params, timeoutMs) {
     if (v === undefined || v === null || v === '') continue;
     fd.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
   }
-  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs || API_TIMEOUT_MS) : null;
+  // ⚠⚠️ **绝对不要传 signal** —— Android WebView 的 fetch + AbortSignal 会抛 AbortError，
+  //    结果就是「连不上服务器」（手机浏览器版却正常，非常难查）。
+  //    超时用 Promise.race 自己实现。
+  const req = fetch(GAS_URL, { method:'POST', body:fd });
+  const limit = timeoutMs || API_TIMEOUT_MS;
+  let timer = null;
+  const guard = new Promise((_, rej) => { timer = setTimeout(() => rej(_timeoutErr_(limit)), limit); });
   try {
-    const r = await fetch(GAS_URL, { method:'POST', body:fd, signal: ctrl ? ctrl.signal : undefined });
+    const r = await Promise.race([req, guard]);
     const j = await r.json();
     if (!j || j.ok === false) throw new Error((j && j.error) || '请求失败');
     return j;
@@ -1498,7 +1527,7 @@ async function api(action, params = {}) {
   if (MOCK) { await new Promise(r => setTimeout(r, 120)); return mockApi(action, params); }
   try { return await apiOnce(action, params); }
   catch (e) {
-    if (!e || e.name !== 'AbortError') throw e;
+    if (!e || (e.name !== 'AbortError' && e.name !== 'TimeoutError')) throw e;
     if (WRITE_ACTIONS.has(action)) {
       const err = new Error('服务器太慢，这次提交可能已经存进去了 —— 刷新看看，别重复提交。');
       err.slow = true; err.mayHaveSucceeded = true;
@@ -1508,7 +1537,7 @@ async function api(action, params = {}) {
     await new Promise(r => setTimeout(r, 900));
     try { return await apiOnce(action, params, 45000); }
     catch (e2) {
-      if (e2 && e2.name === 'AbortError') { const err = new Error('服务器响应太慢，等了 45 秒还没回。'); err.slow = true; throw err; }
+      if (e2 && (e2.name === 'AbortError' || e2.name === 'TimeoutError')) { const err = new Error('服务器响应太慢，等了 45 秒还没回。'); err.slow = true; throw err; }
       throw e2;
     }
   }
@@ -1550,6 +1579,7 @@ createApp({
     return {
       logo: LOGO_URL, logoFail: false,
       cfgOk: false, cfgError: '', loading: false,
+      diag: '', diagOpen: false,
       cfg: { users:{}, roles:{}, chipSets:{ types:{}, profileChips:[], contactPrefs:[], replies:[] } },
       me: '', myRole: 'sales',
       loginUser: '', loginPass: '', loginErr: '',
@@ -1724,6 +1754,7 @@ createApp({
         this.cfgError = (e && e.slow)
           ? '服务器响应太慢，不是断了。点「再试一次」，第二次通常就快了。'
           : ('连不上后端：' + ((e && e.message) || e));
+        this.diag = this._buildDiag_(e);
       }
       this.busy = false; this.loading = false;
       // ⚠ 仅 mock 模式：?autologin=1 自动登入（本地调试三个 tab 用）。
@@ -1735,6 +1766,32 @@ createApp({
         this.loginPass = MOCK_PASSWORD;
         this.doLogin();
       }
+    },
+    /** 连不上的时候，把技术细节拼出来 —— 截图发给开发就能定位 */
+    _buildDiag_(e) {
+      const L = [];
+      L.push('时间: ' + new Date().toLocaleString('zh-CN'));
+      L.push('页面地址: ' + location.href);
+      L.push('运行环境: ' + (this.inApp ? 'Android App (WebView)' : '浏览器'));
+      L.push('UA: ' + navigator.userAgent);
+      L.push('网络状态: ' + (navigator.onLine ? '在线' : '离线 navigator.onLine=false'));
+      L.push('后端地址: ' + GAS_URL);
+      L.push('错误类型: ' + ((e && e.name) || 'Error'));
+      L.push('错误信息: ' + ((e && e.message) || String(e)));
+      if (e && e.stack) L.push('调用栈: ' + String(e.stack).split('\n').slice(0,4).join(' | '));
+      return L.join('\n');
+    },
+    async copyDiag() {
+      const txt = (this.diag || '没有诊断信息') + '\n\n--- OrderFile ' + (this.appVer || '') + ' ---';
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(txt);
+          this.say('诊断信息已复制，发给开发就行', 'ok');
+          return;
+        }
+      } catch (e) { /* 降级：直接把文字显示出来 */ }
+      this.diagOpen = true;
+      this.say('这台设备不支持一键复制，请手动选中下面的字', 'err');
     },
     _syncRole_(username) {
       const u = (this.cfg.users || {})[username] || {};
