@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#F2F2F7">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="OrderFile">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>OrderFile · Squirrel Care</title>
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -43,7 +47,7 @@ body{
 #app{min-height:100%}
 button{font-family:inherit;font-size:inherit;border:0;background:none;color:inherit;cursor:pointer;padding:0}
 input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
-.wrap{max-width:640px;margin:0 auto;padding-bottom:110px}
+.wrap{max-width:640px;margin:0 auto;padding-bottom:150px}
 
 /* ---------- 顶栏 ---------- */
 .topbar{
@@ -148,12 +152,45 @@ input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
 /* ---------- FAB ---------- */
 .fab{
   position:fixed;right:calc(50% - min(320px,50vw) + 18px);
-  bottom:calc(26px + env(safe-area-inset-bottom));
+  bottom:calc(80px + env(safe-area-inset-bottom));
   width:58px;height:58px;border-radius:29px;background:var(--brand);color:#fff;
   display:flex;align-items:center;justify-content:center;
   box-shadow:0 8px 22px rgba(31,182,196,.42);z-index:60;
 }
 .fab:active{transform:scale(.93)}
+/* ---------- 底部导航（手机版） ---------- */
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:58;
+  display:flex;align-items:stretch;
+  background:rgba(248,248,250,.86);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-top:.5px solid rgba(0,0,0,.09);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.tab{
+  flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;padding:8px 0 7px;color:var(--muted);
+}
+.tab.on{color:var(--brand)}
+.tabicon{width:22px;height:22px;display:block}
+.tablabel{font-size:10.5px;font-weight:600;letter-spacing:.2px}
+
+/* ---------- 公告墙 ---------- */
+.wcard{
+  background:var(--card);border-radius:12px;margin:0 16px 10px;padding:13px 14px;
+  border:.5px solid var(--sep);cursor:pointer;
+}
+.wcard:active{opacity:.72}
+.wcard-h{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.wtag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(118,118,128,.14);color:var(--ink2)}
+.wtag.pin{background:rgba(31,182,196,.18);color:#0b8794}
+.wtag.imp{background:rgba(217,58,58,.14);color:var(--danger,#d93a3a)}
+.wcard-t{font-size:15.5px;font-weight:700;line-height:1.4;color:var(--ink)}
+.wcard-x{font-size:13px;color:var(--ink2);line-height:1.55;margin-top:5px}
+.wcard-f{font-size:11.5px;color:var(--muted);margin-top:8px}
+.wbody{font-size:15px;line-height:1.78;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+
 
 /* ---------- 卡片 / 表单 ---------- */
 .card{background:var(--card);border-radius:var(--r);margin:0 16px 12px;box-shadow:var(--sh);overflow:hidden}
@@ -344,10 +381,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       <img class="tb-logo" :src="logo" @error="logoFail=true" v-if="!logoFail" alt="">
       <span class="tb-word" v-else>Squirrel <span style="color:var(--red)">Care</span></span>
       <span class="tb-sp"></span>
-      <select class="tb-role" v-model="myRole" v-if="myRoles.length>1">
-        <option v-for="r in myRoles" :key="r" :value="r">{{cfg.roles[r]||r}}</option>
-      </select>
-      <span class="tb-role" v-else>{{roleLabel}}</span>
+      <span class="tb-sp"></span>
       <span class="tb-name">{{meName}}</span>
       <button class="bell" :class="{hot: notifUnread>0}" @click="openBell" title="消息">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
@@ -355,42 +389,31 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
         </svg>
         <span class="badge" v-if="notifUnread>0">{{notifUnread>99?'99+':notifUnread}}</span>
       </button>
-      <button class="iconbtn" @click="openSheet('settings')" v-if="isAdmin" title="设置">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-      </button>
-      <button class="iconbtn" @click="logout" title="登出">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-        </svg>
-      </button>
     </header>
 
-    <div class="bigt">{{tabTitle}}</div>
-    <div class="subt">{{tabSub}}</div>
+    <div class="bigt" v-if="nav==='orders' && tab!=='following'">{{tabTitle}}</div>
+    <div class="subt" v-if="nav==='orders' && tab!=='following'">{{tabSub}}</div>
 
-    <div class="searchbar">
+    <div class="searchbar" v-if="nav==='orders'">
       <input v-model="kw" placeholder="输入就筛：工程单号 / 电话 / 客户名 / 人名"
              autocapitalize="characters" autocorrect="off" spellcheck="false">
       <button v-if="kw" @click="kw=''">清除</button>
     </div>
 
-    <div class="seg">
+    <div class="seg" v-if="nav==='orders'">
       <button :class="{on:tab==='following'}" @click="switchTab('following')">跟进中<span class="n">{{inbox.following.length}}</span></button>
       <button :class="{on:tab==='quotes'}" @click="switchTab('quotes')">待处理<span class="n">{{quotes.length}}</span></button>
       <button :class="{on:tab==='done'}" @click="switchTab('done')">已完成<span class="n">{{inbox.done.length}}</span></button>
     </div>
 
-    <div class="searchbar" v-if="tab==='quotes'">
+    <div class="searchbar" v-if="nav==='orders' && tab==='quotes'">
       <select class="field" style="flex:1 1 auto" v-model="quoteOwner" @change="switchOwner">
         <option value="">我（{{meName}}）的报价</option>
         <option v-for="u in userList" :key="u.username" :value="u.username">{{u.displayName}} 的报价</option>
       </select>
     </div>
 
-    <div class="wrap">
+    <div class="wrap" v-if="nav==='orders'">
       <div class="list" v-if="loadingQuotes" style="padding:0">
         <div class="empty"><b>正在读报价…</b>第一次要把这批报价文件下载下来，会慢一点。<br>之后就快了。</div>
       </div>
@@ -434,11 +457,129 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       </div>
     </div>
 
-    <button class="fab" @click="openNewOrder" aria-label="新增">
+    <button class="fab" v-if="nav==='orders'" @click="openNewOrder" aria-label="新增">
       <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
     </button>
+
+    <!-- ============ 公告墙 ============ -->
+    <div v-if="nav==='wall'">
+      <div class="bigt">公告墙</div>
+      <div class="subt">公司公告 · 置顶的排在最前面</div>
+      <div class="wrap">
+        <div class="list" v-if="wallLoading" style="padding:0">
+          <div class="empty"><b>正在读公告…</b>公告在另一个系统，第一次会慢一点。</div>
+        </div>
+        <div class="list" v-else-if="wallErr" style="padding:0">
+          <div class="empty">
+            <b>读不到公告</b>{{wallErr}}
+            <div style="margin-top:12px">
+              <button class="btn" @click="loadWall(true)">再试一次</button>
+            </div>
+          </div>
+        </div>
+        <div class="list" v-else-if="!wall.length" style="padding:0">
+          <div class="empty"><b>暂时没有公告</b>有新公告时会出现在这里。</div>
+        </div>
+        <div v-else>
+          <div class="wcard" v-for="a in wall" :key="a.id" role="button" tabindex="0"
+               @click="openWall(a)" @keydown.enter.self="openWall(a)">
+            <div class="wcard-h">
+              <span class="wtag pin" v-if="a.pinned">置顶</span>
+              <span class="wtag imp" v-if="a.priority>=3">重要</span>
+              <span class="wtag" v-if="a.allCompany">全公司</span>
+              <span class="wtag" v-else>{{wallDept(a)}}</span>
+            </div>
+            <div class="wcard-t">{{(a.zh && a.zh.title) || '(无标题)'}}</div>
+            <div class="wcard-x" v-if="wallExcerpt(a)">{{wallExcerpt(a)}}</div>
+            <div class="wcard-f">
+              <span v-if="a.hasDateRange && a.dateRange && a.dateRange.start">{{a.dateRange.start}} ~ {{a.dateRange.end}}</span>
+              <span v-else>{{wallDate(a)}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 我的 ============ -->
+    <div v-if="nav==='me'">
+      <div class="bigt">我的</div>
+      <div class="subt">账号 · 角色 · 管理</div>
+      <div class="wrap">
+        <div class="card" style="margin-top:12px">
+          <div class="hd">账号</div>
+          <div class="kv"><span class="k">登录账号</span><span class="v">{{me}}</span></div>
+          <div class="kv"><span class="k">姓名</span><span class="v">{{meName}}</span></div>
+          <div class="kv"><span class="k">角色</span><span class="v">{{roleList(meObj)}}</span></div>
+        </div>
+
+        <div class="card">
+          <div class="hd">当前角色</div>
+          <div style="padding:0 15px 13px">
+            <select class="field" v-model="myRole" v-if="myRoles.length>1" @change="onRoleChange">
+              <option v-for="r in myRoles" :key="r" :value="r">{{cfg.roles[r]||r}}</option>
+            </select>
+            <div v-else style="color:var(--muted);font-size:14px">{{roleLabel}}（你只有一个角色）</div>
+          </div>
+        </div>
+
+        <div class="card" v-if="isAdmin">
+          <div class="hd">管理</div>
+          <div style="padding:0 15px 13px">
+            <button class="btn" style="width:100%" @click="openSheet('settings')">打开设置 · 词库管理</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">装到手机</div>
+          <div style="padding:0 15px 13px">
+            <button class="btn" style="width:100%" @click="installApp">
+              {{canInstall ? '一键装到主屏幕' : '看看怎么装（iPhone 指引）'}}
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">关于</div>
+          <div class="kv"><span class="k">版本</span><span class="v">OrderFile 手机版 v{{appVer}}</span></div>
+          <div class="kv"><span class="k">公告来源</span><span class="v">公司公告系统</span></div>
+          <div class="kv"><span class="k">订单来源</span><span class="v">报价系统</span></div>
+        </div>
+
+        <div style="padding:6px 16px 24px">
+          <button class="btn" style="width:100%;background:#fff;color:var(--danger,#d93a3a);border:.5px solid var(--sep)"
+                  @click="logout">退出登录</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⭐ 手机版底部导航（由 _patch_mobile.mjs 插入） ⭐ -->
+    <nav class="tabbar">
+      <button class="tab" :class="{on:nav==='orders'}" @click="goNav('orders')">
+        <svg class="tabicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 4H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="2" width="6" height="4" rx="1.2"/>
+          <path d="M9 12h6M9 16h4"/>
+        </svg>
+        <span class="tablabel">跟进中</span>
+      </button>
+      <button class="tab" :class="{on:nav==='wall'}" @click="goNav('wall')">
+        <svg class="tabicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 11v3a1 1 0 0 0 1 1h2.5l5 4.5v-15L6.5 9H4a1 1 0 0 0-1 1z"/>
+          <path d="M16.5 9.2a4 4 0 0 1 0 5.6"/>
+          <path d="M19.2 6.5a8 8 0 0 1 0 11"/>
+        </svg>
+        <span class="tablabel">公告墙</span>
+      </button>
+      <button class="tab" :class="{on:nav==='me'}" @click="goNav('me')">
+        <svg class="tabicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="3.6"/>
+          <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>
+        </svg>
+        <span class="tablabel">我的</span>
+      </button>
+    </nav>
   </div>
 
   <!-- ============ 搜索 / 新增（报价） ============ -->
@@ -497,7 +638,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       <div class="sheet-hd noprint">
         <button class="linkbtn" @click="sheet='';prevSheet=''">‹ 返回</button>
         <h2 style="text-align:center">{{order?order.projNo:''}}</h2>
-        <button class="linkbtn" @click="printFlow">打印</button>
+        <button class="linkbtn" @click="printFlow" v-if="!inApp">打印</button>
       </div>
       <div class="sheet-bd" v-if="order">
         <div class="printhead">
@@ -958,6 +1099,34 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
     </div>
   </div>
 
+  <!-- ============ 公告详情 ============ -->
+  <div class="mask" v-if="sheet==='wallone'" @click.self="closeSheet">
+    <div class="sheet">
+      <div class="sheet-hd">
+        <button class="linkbtn" @click="closeSheet">‹ 返回</button>
+        <h2>公告</h2>
+        <span style="width:34px"></span>
+      </div>
+      <div class="sheet-bd" v-if="wallOne">
+        <div class="card" style="margin-top:12px">
+          <div class="wcard-h">
+            <span class="wtag pin" v-if="wallOne.pinned">置顶</span>
+            <span class="wtag imp" v-if="wallOne.priority>=3">重要</span>
+            <span class="wtag" v-if="wallOne.allCompany">全公司</span>
+            <span class="wtag" v-else>{{wallDept(wallOne)}}</span>
+          </div>
+          <h3 style="margin:2px 0 10px;font-size:19px;line-height:1.35">{{(wallOne.zh && wallOne.zh.title) || '(无标题)'}}</h3>
+          <div class="wbody" v-if="wallOne.zh && wallOne.zh.content">{{wallOne.zh.content}}</div>
+          <div class="wbody" v-else style="color:var(--muted)">（没有内容）</div>
+          <div class="wcard-f" style="margin-top:16px">
+            <span v-if="wallOne.hasDateRange && wallOne.dateRange && wallOne.dateRange.start">生效期间 {{wallOne.dateRange.start}} ~ {{wallOne.dateRange.end}}</span>
+            <span v-else>发布于 {{wallDate(wallOne)}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ 设置（仅 Admin） ============ -->
   <div class="mask" v-if="sheet==='settings'" @click.self="closeSheet">
     <div class="sheet">
@@ -1060,6 +1229,15 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
    ============================================================ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzuwbRRD060rqlNQl8kqt-uLL5W8zbPiyQH4WEKKMk_-EnOmbWmSG7O1AVim99HfsVB6g/exec';
 const LOGO_URL = 'https://ongsami-create.github.io/squirrelannouncement/assets/squirrel-care.png';
+/* 公告系统后端（只读，跨域直调）
+   ⚠️ 地址只能从 projects/37/announcement/index.html 源码里提取，别凭记忆手写 */
+const ANN_GAS_URL = 'https://script.google.com/macros/s/AKfycbwgzh1_cO7O9GqsASza9Jyy0gbUXf7dZ7BZpkFCJ3xKhDBVGq7rrUHtxr9864hRvrcj/exec';
+const APP_VER = '1.0';
+/* 公告系统的部门 key（跟 OrderFile 的 DEPT_LIST 不一样，别混用） */
+const ANN_DEPTS = {
+  admin: '管理员', agent: '代理', designer: '设计师', logistics: '物流',
+  sales: '销售', install: '安装', orderClerk: '下单员'
+};
 
 const DEPT_LIST = [
   { key: 'sales', label: '业务员' },
@@ -1251,6 +1429,42 @@ function mockApi(action, p) {
   return { ok:true };
 }
 
+/* ---------- 公告系统（只读，GET） ----------
+   * 公告后端 doGet 读 e.parameter → 用 GET 最省事，
+   * 而且 GET 是「简单请求」，不会触发 CORS 预检。 */
+async function annApi(action, params) {
+  if (MOCK) {
+    await new Promise(r => setTimeout(r, 120));
+    return { ok:true, announcements:[
+      { id:'ANN-MOCK-1', pinned:true, priority:3, allCompany:true, departments:[], status:'published',
+        hasDateRange:true, dateRange:{start:'2026-11-01', end:'2026-12-31'},
+        publishedAt:'2026-11-01T09:00:00.000Z',
+        zh:{ title:'（示例）把每个环节做到位，用口碑赢得未来', content:'这是 mock 数据，离线看界面用的。\n换行也正常显示。' } },
+      { id:'ANN-MOCK-2', pinned:false, priority:2, allCompany:true, departments:[], status:'published',
+        publishedAt:'2026-10-20T09:00:00.000Z',
+        zh:{ title:'（示例）关于报价系统新增「公告」栏目的通知', content:'公告正文。' } }
+    ] };
+  }
+  const q = new URLSearchParams();
+  q.set('action', action);
+  for (const k in (params || {})) {
+    const v = params[k];
+    if (v === undefined || v === null || v === '') continue;
+    q.set(k, String(v));
+  }
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 15000) : null;
+  try {
+    const r = await fetch(ANN_GAS_URL + '?' + q.toString(), { signal: ctrl ? ctrl.signal : undefined });
+    const j = await r.json();
+    if (!j || j.ok === false) throw new Error((j && j.error) || '读不到公告');
+    return j;
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('公告系统响应太慢');
+    throw e;
+  } finally { if (timer) clearTimeout(timer); }
+}
+
 /* ---------- 请求层：超时 + 区分慢/断 ---------- */
 const API_TIMEOUT_MS = 20000;
 async function apiOnce(action, params, timeoutMs) {
@@ -1340,6 +1554,11 @@ createApp({
       me: '', myRole: 'sales',
       loginUser: '', loginPass: '', loginErr: '',
       view: 'login', sheet: '', prevSheet: '',
+      nav: 'orders',
+      appVer: APP_VER,   // ⚠ 模板里取不到模块级 const → 必须挂到 data 上
+      installPrompt: null, canInstall: false,
+      inApp: false,   // 在 Android APK 里跑（用来隐藏打印等桌面功能）
+      wall: [], wallLoading: false, wallErr: '', wallLoaded: false, wallOne: null,
       tab: 'following',
       inbox: { following:[], done:[] },
       quotes: [], quotesLoaded: false, quoteOwner: '', loadingQuotes: false,
@@ -1507,6 +1726,15 @@ createApp({
           : ('连不上后端：' + ((e && e.message) || e));
       }
       this.busy = false; this.loading = false;
+      // ⚠ 仅 mock 模式：?autologin=1 自动登入（本地调试三个 tab 用）。
+      //    ?as=SSD 可指定用哪个 mock 账号登入。
+      //    真后端永远不会走这条路 —— 密码必须真人输。
+      if (MOCK && location.search.indexOf('autologin=1') >= 0 && !this.me) {
+        const as = (location.search.match(/[?&]as=([A-Za-z0-9]+)/) || [])[1];
+        this.loginUser = as || this.loginUser || 'FSD';
+        this.loginPass = MOCK_PASSWORD;
+        this.doLogin();
+      }
     },
     _syncRole_(username) {
       const u = (this.cfg.users || {})[username] || {};
@@ -1549,6 +1777,53 @@ createApp({
       this.me = ''; this.order = null; this.sheet = ''; this.view = 'login';
       this.loginPass = ''; this.loginErr = '';
       await this.boot();
+    },
+
+    /* ---------- 底部导航 ---------- */
+    goNav(n) {
+      if (this.nav === n) return;
+      this.nav = n;
+      this.kw = '';
+      if (n === 'wall') this.loadWall();
+      try { history.replaceState(null, '', '#' + n); } catch (e) {}
+      window.scrollTo(0, 0);
+    },
+    async loadWall(force) {
+      if (this.wallLoaded && !force) return;
+      this.wallLoading = true; this.wallErr = '';
+      try {
+        const r = await annApi('getWall');
+        this.wall = (r && r.announcements) || [];
+        this.wallLoaded = true;
+      } catch (e) {
+        this.wallErr = (e && e.message) || '网络不通';
+      }
+      this.wallLoading = false;
+    },
+    openWall(a) { this.wallOne = a; this.prevSheet = this.sheet; this.sheet = 'wallone'; },
+    wallDept(a) {
+      const d = (a.departments || []).map(k => ANN_DEPTS[k] || k).join('、');
+      return d || '指定部门';
+    },
+    wallExcerpt(a) {
+      const c = ((a.zh && a.zh.content) || '').replace(/\s+/g, ' ').trim();
+      return c.length > 100 ? c.slice(0, 100) + '…' : c;
+    },
+    wallDate(a) { return this.fmtTime(a.publishedAt || a.createdAt || ''); },
+    async installApp() {
+      if (!this.installPrompt) {
+        this.say('iPhone：用 Safari 打开本页 → 分享 → 添加到主屏幕', 'ok', 4200);
+        return;
+      }
+      this.installPrompt.prompt();
+      try { await this.installPrompt.userChoice; } catch (e) {}
+      this.installPrompt = null; this.canInstall = false;
+    },
+    async onRoleChange() {
+      localStorage.setItem('of_role', this.myRole);
+      this.quotesLoaded = false; this.quotes = [];
+      await this.refreshInbox();
+      this.say('已切到「' + this.roleLabel + '」', 'ok');
     },
 
     /* ---------- 列表 ---------- */
@@ -2095,6 +2370,22 @@ ${evs}
   mounted() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+    // 在 Android APK 里跑？→ 隐藏打印按钮（WebView 没有 window.print，会报错）
+    try {
+      this.inApp = !!(window.OrderFileApp && window.OrderFileApp.isNative());
+    } catch (e) { this.inApp = false; }
+    // PWA 安装引导（Android Chrome 有，iOS Safari 没有 → 按钮给手动指引）
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      this.installPrompt = e;
+      this.canInstall = true;
+    });
+    // hash 路由：#wall / #me / #orders（PWA 快捷方式、APK 直达）
+    const h = String(location.hash || '').replace('#', '');
+    if (h === 'wall' || h === 'me' || h === 'orders') {
+      this.nav = h;
+      if (h === 'wall') this.loadWall();
     }
   }
 }).mount('#app');

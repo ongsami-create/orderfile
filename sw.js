@@ -7,13 +7,14 @@
  *    缓存一份过期的订单档案比不缓存更危险（业务员会按旧版本拆单）。
  *    只缓存 HTML/JS/CSS 这些不会变的壳。
  */
-const SHELL_CACHE = 'of-shell-v1';
+const SHELL_CACHE = 'of-shell-v2';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './icon-maskable-512.png'
 ];
 
 self.addEventListener('install', e => {

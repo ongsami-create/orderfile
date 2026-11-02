@@ -3,9 +3,12 @@
   "short_name": "OrderFile",
   "description": "一个 projNo，一条谁都不会覆盖的时间轴。业务员 → 设计师 → 下单员 → 安装员。",
   "lang": "zh-Hans",
-  "start_url": "./index.html",
+  "dir": "ltr",
+  "id": "/orderfile/",
+  "start_url": "./index.html#orders",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait",
   "background_color": "#f5f5f7",
   "theme_color": "#f5f5f7",
@@ -32,10 +35,25 @@
   ],
   "shortcuts": [
     {
-      "name": "待我处理",
-      "short_name": "待办",
-      "url": "./index.html#inbox",
-      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+      "name": "跟进中",
+      "short_name": "跟进中",
+      "description": "看正在跟进的订单",
+      "url": "./index.html#orders",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "公告墙",
+      "short_name": "公告墙",
+      "description": "公司公告",
+      "url": "./index.html#wall",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "我的",
+      "short_name": "我的",
+      "description": "账号 · 角色 · 设置",
+      "url": "./index.html#me",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }
