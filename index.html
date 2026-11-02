@@ -243,6 +243,15 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
 .noti .nb{flex:1 1 auto;min-width:0;font-size:14px;line-height:1.5}
 .noti .nb b{font-weight:700}
 .noti .nb .t{font-size:11.5px;color:var(--muted);display:block;margin-top:2px}
+/* 通知后面的「最后更新类型」chip
+   ⚠️ 不能用 class="tag t" —— 通知里的时间 span 也叫 .t，
+   会命中 `.noti .nb .t{display:block}` 把 chip 拉成整行。所以用专属 class。 */
+.noti .nb .ntype{
+  display:inline-flex;align-items:center;white-space:nowrap;
+  font-size:11px;font-weight:600;line-height:1.5;
+  padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;
+  color:var(--c-t);background:var(--c-t-bg);
+}
 
 /* ---------- 登录页 ---------- */
 .login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px calc(40px + env(safe-area-inset-bottom))}
@@ -928,6 +937,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
                 <template v-if="n.assignToName"> 提醒 <b>{{n.assignToName}}</b> 跟进</template>
                 <template v-else> 增加新的内容</template>
               </template>
+              <span class="ntype" v-if="n.type">{{n.type}}</span>
               <span class="t">{{fmtTime(n.at)}}</span>
             </span>
           </div>
