@@ -1538,8 +1538,11 @@ createApp({
       } catch (e) {
         this.loginErr = (e && e.message) || '登不进去，检查一下网络';
         this.loginPass = '';
+      } finally {
+        // ⚠ 必须用 finally：上面的早退分支也会跳过函数末尾的复位，
+        //    结果登录失败后按钮一直卡在禁用/转圈，再也点不动。
+        this.busy = false;
       }
-      this.busy = false;
     },
     async logout() {
       // ⚠ of_user 只存账号（预填用），**不存密码** → 登出后账号还留着，密码要重输
