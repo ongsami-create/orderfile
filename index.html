@@ -232,7 +232,11 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
 .menubtn:active{background:rgba(0,0,0,.05)}
 .menubtn.off{color:var(--muted);font-size:13.5px}
 /* 图片弹窗的档案文字（不重要，用小字） */
-.sheet-hd h2.ph-t{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.1px}
+.sheet-hd h2.ph-t{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.1px}
+/* 登录页「记住密码」 */
+.lgrow{display:flex;align-items:center;gap:7px;margin:2px 0 12px;font-size:13px;color:var(--ink2);cursor:pointer}
+.lgrow input{width:17px;height:17px;accent-color:var(--brand);margin:0;flex:0 0 auto}
+.lgsave{font-size:12px;color:var(--orange,#c8811f);margin:-4px 0 10px;line-height:1.5}
 /* 图片本体：禁止长按选中文字，否则长按下载会先弹出「选中」 */
 .photoimg{width:100%;border-radius:12px;display:block;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .sheet-hd{padding:13px 16px 11px;border-bottom:.5px solid var(--sep);display:flex;align-items:center;gap:10px;flex:0 0 auto}
@@ -405,10 +409,15 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
              @keyup.enter="doLogin">
       <input class="field lgin" type="password" v-model="loginPass" placeholder="密码"
              autocomplete="current-password" @keyup.enter="doLogin">
+      <label class="lgrow">
+        <input type="checkbox" v-model="rememberPass">
+        <span>记住密码（这台设备）</span>
+      </label>
       <button class="btn lgbtn" :disabled="busy || !loginUser.trim() || !loginPass" @click="doLogin">
         <span v-if="busy" class="spin"></span>登入
       </button>
       <p class="lgerr" v-if="loginErr">{{loginErr}}</p>
+      <p class="lgsave" v-if="rememberPass">⚠ 这台设备会记住密码 —— 别在不信任的设备上登录</p>
       <p class="lghint">跟报价系统同一套账号密码<br>忘记密码 → 找管理员在「管理后台 → 人员管理」里改</p>
     </div>
     <div class="errcard" v-else>
@@ -590,6 +599,14 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
           <div class="hd">管理</div>
           <div style="padding:0 15px 13px">
             <button class="btn" style="width:100%" @click="openSheet('settings')">打开设置 · 词库管理</button>
+          </div>
+        </div>
+
+        <div class="card" v-if="savedPass">
+          <div class="hd">已记住的密码</div>
+          <div style="padding:0 15px 13px">
+            <button class="btn" style="width:100%;background:#fff;color:var(--danger,#d93a3a);border:.5px solid var(--sep)"
+                    @click="clearSavedPass">清除这台设备记住的密码</button>
           </div>
         </div>
 
@@ -1775,6 +1792,7 @@ createApp({
       cfg: { users:{}, roles:{}, chipSets:{ types:{}, profileChips:[], contactPrefs:[], replies:[] } },
       me: '', myRole: 'sales',
       loginUser: '', loginPass: '', loginErr: '',
+      rememberPass: false, savedPass: '',
       view: 'login', sheet: '', prevSheet: '',
       nav: 'orders',
       appVer: APP_VER,   // ⚠ 模板里取不到模块级 const → 必须挂到 data 上
@@ -1941,6 +1959,10 @@ createApp({
         //    （用户拍板：每次都要输密码，只记住账号）。
         //    这里只把上次的账号填好，省得每次手打。
         this.loginUser = localStorage.getItem('of_user') || '';
+        // ⚠ 2026-11-03 Sami 改口：要记住密码（原来是「只记账号，每次都要输」）
+        this.savedPass = localStorage.getItem('of_pass') || '';
+        this.rememberPass = !!this.savedPass;
+        this.loginPass = this.savedPass;      // 自动填好，用户点一下「登入」就行
         this.view = 'login';
       } catch (e) {
         this.cfgError = (e && e.slow)
@@ -1956,6 +1978,8 @@ createApp({
         const as = (location.search.match(/[?&]as=([A-Za-z0-9]+)/) || [])[1];
         this.loginUser = as || this.loginUser || 'FSD';
         this.loginPass = MOCK_PASSWORD;
+        // ?remember=1 → 顺便测「记住密码」的存盘流程（仅 mock，不影响真后端）
+        this.rememberPass = location.search.indexOf('remember=1') >= 0;
         this.doLogin();
       }
     },
@@ -2106,6 +2130,12 @@ createApp({
       } catch (e) { /* 降级 */ }
       this.say('这台设备不支持复制，链接：' + link, 'ok', 5000);
     },
+    /** 清除这台设备记住的密码 */
+    clearSavedPass() {
+      try { localStorage.removeItem('of_pass'); } catch (e) {}
+      this.savedPass = ''; this.rememberPass = false; this.loginPass = '';
+      this.say('已清除这台设备记住的密码', 'ok');
+    },
     async copyDiag() {
       const txt = (this.diag || '没有诊断信息') + '\n\n--- OrderFile ' + (this.appVer || '') + ' ---';
       try {
@@ -2140,7 +2170,16 @@ createApp({
           return;
         }
         this.me = r.username || u;
-        localStorage.setItem('of_user', this.me);   // ⚠ 只记住账号，**不存密码**
+        localStorage.setItem('of_user', this.me);
+        // ⚠ 2026-11-03：按「记住密码」开关决定存不存
+        //    （这是明文存在这台设备上，所以给了开关 + 风险提示 + 一键清除）
+        if (this.rememberPass) {
+          try { localStorage.setItem('of_pass', p); } catch (e) {}
+          this.savedPass = p;
+        } else {
+          try { localStorage.removeItem('of_pass'); } catch (e) {}
+          this.savedPass = '';
+        }
         this._syncRole_(this.me);
         this.view = 'home';
         this.loginPass = '';
@@ -2798,6 +2837,7 @@ ${evs}
 })();
 /*__PATCH4_THUMBS__*/
 /*__PATCH5__*/
+/*__PATCH6__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
