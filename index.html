@@ -2710,6 +2710,14 @@ createApp({
         this.notifs = (r.items || []).map(x => Object.assign({}, x, { isNew: !last || String(x.at) > String(last) }));
         this.notifUnread = r.unread || 0;
       } catch (e) { /* 铃铛失败不影响主流程 */ }
+      this._syncBadge_();
+    },
+    /** 把未读数同步到桌面图标角标（只有 App 里才有原生桥，浏览器里自动跳过） */
+    _syncBadge_() {
+      try {
+        const nb = _nativeBridge_();
+        if (nb && nb.setBadge) nb.setBadge(this.notifUnread || 0);
+      } catch (e) { /* 角标失败不影响主流程 */ }
     },
     async openBell() {
       this.prevSheet = '';
@@ -2717,6 +2725,7 @@ createApp({
       await this.loadNotifs();
       try { await api('readNotifications', { username: this.me }); } catch (e) {}
       this.notifUnread = 0;
+      this._syncBadge_();     // 角标清零
     },
     openNoti(n) { this.closeSheet(); this.openOrder(n.projNo); },
 
@@ -2838,6 +2847,7 @@ ${evs}
 /*__PATCH4_THUMBS__*/
 /*__PATCH5__*/
 /*__PATCH6__*/
+/*__PATCH7__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
