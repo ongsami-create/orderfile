@@ -659,6 +659,19 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
         </div>
 
         <div class="card">
+          <div class="hd">版本</div>
+          <div style="padding:0 15px 13px">
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:9px">
+              App {{appVer}} · 页面 {{pageVer}}
+            </div>
+            <button class="btn" style="width:100%" @click="reloadPage">刷新页面（拿最新版本）</button>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.6">
+              页面改了但 App 还显示旧的？点一下刷新。
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="hd">装到手机</div>
           <div style="padding:0 15px 13px">
             <button class="btn" style="width:100%" @click="installApp">
@@ -1920,6 +1933,8 @@ createApp({
       loginStage: '',   // 登录进行中的阶段提示（正在连服务器 / 正在读取订单…）
       rememberPass: false, savedPass: '',
       _bellRead_: false,   // 本次会话点过铃铛（已标记已读 → 别再把角标设回来）
+      appVer: '1.0',       // App 版本（原生桥读得到）
+      pageVer: '未知',      // 页面版本（构建时注入的时间戳）
       view: 'login', sheet: '', prevSheet: '',
       nav: 'orders',
       appVer: APP_VER,   // ⚠ 模板里取不到模块级 const → 必须挂到 data 上
@@ -2295,6 +2310,18 @@ createApp({
         }
       } catch (e) { /* 降级 */ }
       this.say('这台设备不支持复制，链接：' + link, 'ok', 5000);
+    },
+    /** 刷新页面：App 里走原生（绕开 SW/HTTP 缓存），浏览器里直接 reload */
+    async reloadPage() {
+      try {
+        const nb = _nativeBridge_();
+        if (nb && nb.reloadPage) {
+          nb.reloadPage();
+          this.say('正在重新载入最新页面…', 'ok', 1800);
+          return;
+        }
+      } catch (e) { /* 降级 */ }
+      location.reload();
     },
     /** 清除本地缓存（列表/铃铛/单据/公告） */
     clearCache() {
@@ -3042,6 +3069,16 @@ ${evs}
     try {
       const nb = _nativeBridge_();
       if (nb && nb.warmup) nb.warmup(GAS_URL);
+      if (nb && nb.appVersion) this.appVer = nb.appVersion();
+    } catch (e) {}
+    // 页面版本（构建时注入）
+    this.pageVer = (typeof window.__PAGE_BUILD__ !== 'undefined' && window.__PAGE_BUILD__)
+      ? window.__PAGE_BUILD__ : '未知';
+    // ⭐ 让 Service Worker 检查新版本 —— 否则 App 可能一直显示缓存的旧页面
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+        navigator.serviceWorker.getRegistration().then(function (r) { if (r) r.update(); }).catch(function () {});
+      }
     } catch (e) {}
     // 在 Android APK 里跑？→ 隐藏打印按钮（WebView 没有 window.print，会报错）
     try {
@@ -3076,6 +3113,7 @@ ${evs}
 /*__PATCH8__*/
 /*__PATCH9__*/
 /*__PATCH10__*/
+/*__PATCH11__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
