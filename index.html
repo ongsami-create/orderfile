@@ -305,7 +305,25 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
 /* 通知后面的「最后更新类型」chip
    ⚠️ 不能用 class="tag t" —— 通知里的时间 span 也叫 .t，
    会命中 `.noti .nb .t{display:block}` 把 chip 拉成整行。所以用专属 class。 */
-.noti .nb .ntype{
+/* 铃铛：把「谁 在 哪张单 做了什么」说清楚 */
+.noti .nline{display:block;font-size:14px;line-height:1.5;color:var(--ink)}
+.noti .nwho{font-weight:700}
+.noti .nwhere{color:var(--muted);margin:0 3px}
+.noti .nproj{font-weight:700;color:var(--brand)}
+.noti .nverb{color:var(--ink);margin-left:5px}
+.noti .nquote{
+  display:inline-block;margin-left:5px;max-width:100%;vertical-align:bottom;
+  color:var(--ink2);font-size:13px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;
+}
+.noti .nmeta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px}
+.noti .ncust{font-size:11.5px;color:var(--muted)}
+.noti .ntag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:1.5px 6px;border-radius:5px;line-height:1.5}
+.noti .ntag.done{background:rgba(46,158,98,.15);color:#1F7A45}
+.noti .ntag.ping{background:rgba(127,79,201,.14);color:#6B3FB5}
+.noti .ntag.type{background:rgba(44,99,216,.12);color:#2C63D8}
+.noti.imp{background:rgba(255,250,235,.92)}
+.noti .ntype{
   display:inline-flex;align-items:center;white-space:nowrap;
   font-size:11px;font-weight:600;line-height:1.5;
   padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:1px;
@@ -599,6 +617,16 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
           <div class="hd">管理</div>
           <div style="padding:0 15px 13px">
             <button class="btn" style="width:100%" @click="openSheet('settings')">打开设置 · 词库管理</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">本地缓存</div>
+          <div style="padding:0 15px 13px">
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:9px">
+              缓存了 {{cacheInfo}}（列表/铃铛/单据/公告的副本，让 App 秒开）
+            </div>
+            <button class="btn" style="width:100%" @click="clearCache">清除本地缓存</button>
           </div>
         </div>
 
@@ -1168,19 +1196,24 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       <div class="sheet-bd">
         <div class="card" style="margin-top:12px;padding:0">
           <div v-if="!notifs.length" class="empty" style="padding:44px 20px">暂时没有新消息</div>
-          <div class="noti" v-for="(n,i) in notifs" :key="i" :class="{unread:n.isNew}" @click="openNoti(n)">
+          <div class="noti" v-for="(n,i) in notifsSorted" :key="i"
+               :class="{unread:n.isNew, imp:n.markDone||n.assignToName}" @click="openNoti(n)">
             <span class="nd"></span>
             <span class="nb">
-              <b>{{n.authorName}}</b>
-              <template v-if="n.deleted"> 已删除 <b>{{n.projNo}}</b> 的一条信息</template>
-              <template v-else-if="n.edited"> 已编辑 <b>{{n.projNo}}</b> 的一条信息</template>
-              <template v-else>
-                在 <b>{{n.projNo}}</b>
-                <template v-if="n.assignToName"> 提醒 <b>{{n.assignToName}}</b> 跟进</template>
-                <template v-else> 增加新的内容</template>
-              </template>
-              <span class="ntype" v-if="n.type">{{n.type}}</span>
-              <span class="t">{{fmtTime(n.at)}}</span>
+              <span class="nline">
+                <b class="nwho">{{n.authorName}}</b>
+                <span class="nwhere">在</span>
+                <b class="nproj">{{n.projNo}}</b>
+                <span class="nverb">{{notiVerb(n)}}</span>
+                <span class="nquote" v-if="notiText(n)">{{notiText(n)}}</span>
+              </span>
+              <span class="nmeta">
+                <span class="ncust" v-if="n.customerName">{{n.customerName}}</span>
+                <span class="ntag done" v-if="n.markDone">✓ 完成</span>
+                <span class="ntag ping" v-if="n.assignToName">🔔 {{n.assignToName}}</span>
+                <span class="ntag type" v-if="n.type && !n.markDone && !n.assignToName">{{n.type}}</span>
+                <span class="t">{{fmtTime(n.at)}}</span>
+              </span>
             </span>
           </div>
         </div>
@@ -1564,12 +1597,27 @@ function mockApi(action, p) {
     return { ok:true, order:o, created:true };
   }
   if (action === 'notifications') {
-    const now = Date.now(), H = 3600000;
-    return { ok:true, unread:2, lastReadAt:new Date(now-3*H).toISOString(), items:[
-      { at:new Date(now-20*60000).toISOString(), projNo:'SSD09', customerName:'RAY ONG', author:'JUN', authorName:'JUN', type:'验收', assignTo:null, markDone:false },
-      { at:new Date(now-90*60000).toISOString(), projNo:'fsd17', customerName:'WIEW LI WAN', author:'FSD', authorName:'STELLA', type:'沟通', assignTo:'SSD', assignToName:'SAMI', markDone:false },
-      { at:new Date(now-5*60000).toISOString(), projNo:'SSD09', customerName:'RAY ONG', author:'SSD', authorName:'SAMI', type:'沟通', markDone:false, edited:true },
-      { at:new Date(now-2*60000).toISOString(), projNo:'SSD09', customerName:'RAY ONG', author:'SSD', authorName:'SAMI', type:'沟通', markDone:false, deleted:true }
+    // mock 通知：覆盖各种动作，方便本地验证文案 / 排序 / 内容摘要
+    const now = Date.now(), H = 3600000, M = 60000;
+    return { ok:true, unread:4, lastReadAt:new Date(now-3*H).toISOString(), items:[
+      { at:new Date(now-20*M).toISOString(), projNo:'SSD09', customerName:'RAY ONG',
+        author:'JSD', authorName:'JESSY', type:'沟通',
+        content:'客户看了 V1，嫌把手太细，约周四下午带样品上门',
+        assignTo:null, markDone:false },
+      { at:new Date(now-40*M).toISOString(), projNo:'PSD06', customerName:'SIEW HEONG',
+        author:'PSD', authorName:'PEGGY', type:'沟通', content:'',
+        assignTo:null, markDone:true },
+      { at:new Date(now-1*H).toISOString(), projNo:'SSD09', customerName:'RAY ONG',
+        author:'FSD', authorName:'STELLA', type:'方案',
+        content:'厨房 3.2m × 2.1m，窗台下净高 92cm',
+        assignTo:'SSD', assignToName:'SAMI', markDone:false },
+      { at:new Date(now-2*H).toISOString(), projNo:'PSD39', customerName:'SIEW HEONG',
+        author:'PSD', authorName:'PEGGY', type:'要求',
+        content:'所有板材要用同一种颜色，色差不能超过一档',
+        assignTo:null, markDone:false },
+      { at:new Date(now-5*M).toISOString(), projNo:'SSD09', customerName:'RAY ONG',
+        author:'SSD', authorName:'SAMI', type:'沟通', content:'',
+        assignTo:null, markDone:false, deleted:true }
     ] };
   }
   if (action === 'readNotifications') return { ok:true, at:new Date().toISOString() };
@@ -1625,6 +1673,63 @@ async function annApi(action, params) {
     if (e && (e.name === 'AbortError' || e.name === 'TimeoutError')) throw new Error('公告系统响应太慢');
     throw e;
   } finally { if (timer) clearTimeout(timer); }
+}
+
+/* ---------- 本地缓存（stale-while-revalidate） ----------
+ * 目的：打开 App / 点铃铛 / 点开单 —— **先秒开**（显示上次的数据），
+ *      背景再悄悄拉一次新的（stale-while-revalidate）。
+ *
+ * ⚠ 只缓存「读」的数据。写操作**绝对不走缓存** ——
+ *    写要靠后端 + 幂等 + 重试保护，缓存会让状态错乱。
+ * ⚠ 缓存带时间戳，过期就当没有（宁可慢，也不能给错数据）。
+ * ⚠ 订单缓存最多留 5 个（localStorage 有 5MB 限制）。
+ */
+const CACHE_TTL = {
+  cfg:   30 * 60 * 1000,   // 名册/词库：30 分钟
+  inbox: 3 * 60 * 1000,    // 列表：3 分钟
+  notifs: 2 * 60 * 1000,   // 铃铛：2 分钟
+  wall:  15 * 60 * 1000,   // 公告：15 分钟
+  order: 5 * 60 * 1000     // 单据：5 分钟
+};
+const ORDER_CACHE_MAX = 5;
+
+function _cachePut_(key, data) {
+  try {
+    const raw = JSON.stringify({ t: Date.now(), d: data });
+    localStorage.setItem('of_cache_' + key, raw);
+  } catch (e) { /* 存不下就算了，不影响主流程 */ }
+}
+/** 返回 {t: 时间戳, d: 数据, s: 字节数}；过期或没有 → null */
+function _cacheGet_(key, ttl) {
+  try {
+    const raw = localStorage.getItem('of_cache_' + key);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || o.d === undefined || o.d === null) return null;
+    if (ttl && Date.now() - o.t > ttl) return null;   // 太旧 → 当没有
+    o.s = raw.length;
+    return o;
+  } catch (e) { return null; }
+}
+function _cacheDrop_(key) {
+  try { localStorage.removeItem('of_cache_' + key); } catch (e) {}
+}
+/** 订单缓存：最多留 5 个（LRU） */
+function _cacheOrder_(projNo, order) {
+  _cachePut_('order_' + projNo, order);
+  try {
+    let list = JSON.parse(localStorage.getItem('of_cache_orderlist') || '[]');
+    list = [projNo].concat(list.filter(function (x) { return x !== projNo; })).slice(0, ORDER_CACHE_MAX);
+    localStorage.setItem('of_cache_orderlist', JSON.stringify(list));
+  } catch (e) {}
+}
+function _cacheClearAll_() {
+  ['cfg', 'inbox', 'notifs', 'wall'].forEach(function (k) { _cacheDrop_(k); });
+  try {
+    const list = JSON.parse(localStorage.getItem('of_cache_orderlist') || '[]');
+    list.forEach(function (p) { _cacheDrop_('order_' + p); });
+    localStorage.removeItem('of_cache_orderlist');
+  } catch (e) {}
 }
 
 /* ---------- 请求层：超时 + 区分慢/断 ---------- */
@@ -1793,6 +1898,7 @@ createApp({
       me: '', myRole: 'sales',
       loginUser: '', loginPass: '', loginErr: '',
       rememberPass: false, savedPass: '',
+      _bellRead_: false,   // 本次会话点过铃铛（已标记已读 → 别再把角标设回来）
       view: 'login', sheet: '', prevSheet: '',
       nav: 'orders',
       appVer: APP_VER,   // ⚠ 模板里取不到模块级 const → 必须挂到 data 上
@@ -1882,6 +1988,38 @@ createApp({
     stamp() { return new Date().toLocaleString('zh-CN'); },
     // 时间轴条数（不含被删除的）—— ⚠️ 必须在 computed 里，
     // 放 methods 的话模板拿到的是函数本身，会显示成「FUNCTION () { [NATIVE CODE] }」
+    /** 铃铛排序：重要的在前（完成 > 提醒某人 > 要求/变更 > 普通），同级按时间新→旧 */
+    notifsSorted() {
+      const w = (n) => {
+        if (n.markDone) return 6;
+        if (n.assignToName) return 5;
+        if (n.type === '要求') return 4;
+        if (n.type === '变更' || n.type === '确认' || n.type === '注意事项') return 3;
+        if (n.deleted || n.edited) return 1;
+        return 2;
+      };
+      return this.notifs.slice().sort((a, b) => {
+        const d = w(b) - w(a);
+        if (d) return d;
+        return String(b.at || '').localeCompare(String(a.at || ''));
+      });
+    },
+    /** 本地缓存占用（给「我的」页显示） */
+    cacheInfo() {
+      let n = 0, bytes = 0;
+      ['cfg', 'inbox', 'notifs', 'wall'].forEach(k => {
+        const v = _cacheGet_(k, 0);
+        if (v) { n++; bytes += (v.s || 0); }
+      });
+      try {
+        const list = JSON.parse(localStorage.getItem('of_cache_orderlist') || '[]');
+        list.forEach(p => {
+          const v = _cacheGet_('order_' + p, 0);
+          if (v) { n++; bytes += (v.s || 0); }
+        });
+      } catch (e) { }
+      return n ? (n + ' 项 · ' + Math.round(bytes / 1024) + ' KB') : '还没有缓存';
+    },
     liveEventCount() {
       return ((this.order && this.order.events) || []).filter(e => !e.deleted).length;
     }
@@ -2130,6 +2268,11 @@ createApp({
       } catch (e) { /* 降级 */ }
       this.say('这台设备不支持复制，链接：' + link, 'ok', 5000);
     },
+    /** 清除本地缓存（列表/铃铛/单据/公告） */
+    clearCache() {
+      _cacheClearAll_();
+      this.say('本地缓存已清空', 'ok');
+    },
     /** 清除这台设备记住的密码 */
     clearSavedPass() {
       try { localStorage.removeItem('of_pass'); } catch (e) {}
@@ -2211,11 +2354,15 @@ createApp({
     },
     async loadWall(force) {
       if (this.wallLoaded && !force) return;
+      // ⚠ 公告变化很慢 → 先用缓存（最长 15 分钟），后台再拉
+      const c = _cacheGet_('wall', CACHE_TTL.wall);
+      if (c && c.d && !this.wall.length) { this.wall = c.d; this.wallLoaded = true; }
       this.wallLoading = true; this.wallErr = '';
       try {
         const r = await annApi('getWall');
         this.wall = (r && r.announcements) || [];
         this.wallLoaded = true;
+        _cachePut_('wall', this.wall);
       } catch (e) {
         this.wallErr = (e && e.message) || '网络不通';
       }
@@ -2249,12 +2396,16 @@ createApp({
 
     /* ---------- 列表 ---------- */
     async refreshInbox() {
+      // ⚠ 先显示上次的缓存（秒开），后台再拉新的
+      const c = _cacheGet_('inbox', CACHE_TTL.inbox);
+      if (c && c.d) this.inbox = c.d;
       this.busy = true;
       try {
         const r = await api('getInbox', { username: this.me, role: this.myRole });
         this.inbox = { following: r.following || [], done: r.done || [] };
+        _cachePut_('inbox', this.inbox);
         this.quotesLoaded = false;
-      } catch (e) { this.say('拉列表失败：' + e.message, 'err'); }
+      } catch (e) { if (!c) this.say('拉列表失败：' + e.message, 'err'); }
       this.busy = false;
       this.loadNotifs();
     },
@@ -2308,6 +2459,14 @@ createApp({
       await this.openOrder(r.projNo);
     },
     async openOrder(projNo) {
+      // ⚠ 先显示缓存的订单（秒开），后台再拉新的
+      const c = _cacheGet_('order_' + projNo, CACHE_TTL.order);
+      if (c && c.d) {
+        this.order = c.d;
+        this._buildTimeline();
+        this.prevSheet = '';
+        this.sheet = 'order';
+      }
       this.busy = true;
       try {
         const r = await api('getOrder', { projNo, username: this.me, role: this.myRole });
@@ -2315,7 +2474,8 @@ createApp({
         this._buildTimeline();
         this.prevSheet = '';
         this.sheet = 'order';
-      } catch (e) { this.say('打不开：' + e.message, 'err', 5000); }
+        _cacheOrder_(projNo, this.order);
+      } catch (e) { if (!c) this.say('打不开：' + e.message, 'err', 5000); }
       this.busy = false;
     },
     _buildTimeline() {
@@ -2703,14 +2863,40 @@ createApp({
     },
 
     /* ---------- 铃铛 ---------- */
+    /** 铃铛文案：说清楚「做了什么」（方法，不是 computed —— 要带参数） */
+    notiVerb(n) {
+      if (n.deleted) return '删除了信息';
+      if (n.edited) return '编辑了信息';
+      if (n.markDone) return '标记完成';
+      if (n.assignToName) return '提醒 ' + n.assignToName + ' 跟进';
+      if (n.type === '要求') return '提了要求';
+      if (n.type === '变更') return '改了方案';
+      if (n.type === '确认') return '确认了';
+      if (n.type === '注意事项') return '提醒注意';
+      return '说';
+    },
+    /** 内容摘要（后端给的 content 字段） */
+    notiText(n) {
+      if (n.deleted || n.edited || n.markDone || n.assignToName) return '';
+      const c = String(n.content || '').trim();
+      if (!c) return '';
+      return c.length > 40 ? c.slice(0, 40) + '…' : c;
+    },
     async loadNotifs() {
+      // ⚠ 先显示缓存（秒开），后台再拉新的
+      const c = _cacheGet_('notifs', CACHE_TTL.notifs);
+      if (c && c.d && !this.notifs.length) {
+        this.notifs = c.d.notifs || [];
+        this.notifUnread = c.d.unread || 0;
+      }
       try {
         const r = await api('notifications', { username: this.me });
         const last = r.lastReadAt || '';
         this.notifs = (r.items || []).map(x => Object.assign({}, x, { isNew: !last || String(x.at) > String(last) }));
         this.notifUnread = r.unread || 0;
+        _cachePut_('notifs', { notifs: this.notifs, unread: this.notifUnread });
       } catch (e) { /* 铃铛失败不影响主流程 */ }
-      this._syncBadge_();
+      if (!this._bellRead_) this._syncBadge_();
     },
     /** 把未读数同步到桌面图标角标（只有 App 里才有原生桥，浏览器里自动跳过） */
     _syncBadge_() {
@@ -2719,13 +2905,16 @@ createApp({
         if (nb && nb.setBadge) nb.setBadge(this.notifUnread || 0);
       } catch (e) { /* 角标失败不影响主流程 */ }
     },
-    async openBell() {
+    openBell() {
+      // ⚠ **不要 await** —— 点了立刻就开（用缓存渲染），后台再刷新。
+      //    原来这里 await 了 loadNotifs + readNotifications = 两次 GAS 往返 = 4~6 秒。
       this.prevSheet = '';
       this.sheet = 'bell';
-      await this.loadNotifs();
-      try { await api('readNotifications', { username: this.me }); } catch (e) {}
+      this._bellRead_ = true;      // 本次会话已读 → 别再把角标设回来
       this.notifUnread = 0;
-      this._syncBadge_();     // 角标清零
+      this._syncBadge_();          // 角标先清（乐观）
+      this.loadNotifs();            // 后台刷新（不等）
+      api('readNotifications', { username: this.me }).catch(() => {});   // 后台标记已读
     },
     openNoti(n) { this.closeSheet(); this.openOrder(n.projNo); },
 
@@ -2848,6 +3037,8 @@ ${evs}
 /*__PATCH5__*/
 /*__PATCH6__*/
 /*__PATCH7__*/
+/*__PATCH8__*/
+/*__PATCH9__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
