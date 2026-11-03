@@ -355,6 +355,22 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
   white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;text-align:left;
   -webkit-user-select:text;user-select:text;
 }
+/* 登录中的「正在登入中···」 */
+.lgstage{
+  display:flex;align-items:center;justify-content:center;gap:1px;
+  font-size:13px;color:var(--muted);margin-top:11px;height:18px;
+}
+.lgstage .lgstxt{margin-right:1px}
+.lgstage i{
+  display:inline-block;width:3px;height:3px;border-radius:50%;
+  background:var(--brand);animation:lgdot 1.25s infinite ease-in-out;
+}
+.lgstage i:nth-child(2){animation-delay:.18s}
+.lgstage i:nth-child(3){animation-delay:.36s}
+@keyframes lgdot{
+  0%,60%,100%{opacity:.22;transform:translateY(0)}
+  30%{opacity:1;transform:translateY(-2px)}
+}
 .lgerr{margin:2px 0 0;font-size:13px;color:var(--danger,#d93a3a);text-align:center;line-height:1.5}
 .lghint{margin:8px 0 0;font-size:12px;color:var(--muted);text-align:center;line-height:1.7}
 .errcard{background:var(--card);border-radius:var(--r);padding:22px 18px;text-align:center;box-shadow:var(--sh);max-width:420px;width:100%}
@@ -434,6 +450,10 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       <button class="btn lgbtn" :disabled="busy || !loginUser.trim() || !loginPass" @click="doLogin">
         <span v-if="busy" class="spin"></span>登入
       </button>
+      <!-- 正在登入的提示（三个跳动点） -->
+      <div class="lgstage" v-if="busy && loginStage">
+        <span class="lgstxt">{{loginStage}}</span><i></i><i></i><i></i>
+      </div>
       <p class="lgerr" v-if="loginErr">{{loginErr}}</p>
       <p class="lgsave" v-if="rememberPass">⚠ 这台设备会记住密码 —— 别在不信任的设备上登录</p>
       <p class="lghint">跟报价系统同一套账号密码<br>忘记密码 → 找管理员在「管理后台 → 人员管理」里改</p>
@@ -1897,6 +1917,7 @@ createApp({
       cfg: { users:{}, roles:{}, chipSets:{ types:{}, profileChips:[], contactPrefs:[], replies:[] } },
       me: '', myRole: 'sales',
       loginUser: '', loginPass: '', loginErr: '',
+      loginStage: '',   // 登录进行中的阶段提示（正在连服务器 / 正在读取订单…）
       rememberPass: false, savedPass: '',
       _bellRead_: false,   // 本次会话点过铃铛（已标记已读 → 别再把角标设回来）
       view: 'login', sheet: '', prevSheet: '',
@@ -2118,6 +2139,13 @@ createApp({
         this.loginPass = MOCK_PASSWORD;
         // ?remember=1 → 顺便测「记住密码」的存盘流程（仅 mock，不影响真后端）
         this.rememberPass = location.search.indexOf('remember=1') >= 0;
+        // ?autofill=1 → 只把账号密码填好，**不自动登入**
+        //   （方便本地看「正在登入中…」动画；仅 mock，不影响真后端）
+        if (location.search.indexOf('autofill=1') >= 0) {
+          this.view = 'login';
+          this.loginPass = MOCK_PASSWORD;
+          return;
+        }
         this.doLogin();
       }
     },
@@ -2305,6 +2333,10 @@ createApp({
       if (!u || !p) return;
       this.busy = true;
       this.loginErr = '';
+      // ⚠ 分阶段提示 —— 用户点了要有反馈，不能像"没反应"
+      //    注意：login 请求**返回之后**页面就跳走了，
+      //    所以登录页能显示的只有这一句（后面那句在首页上显示）。
+      this.loginStage = '正在验证账号';
       try {
         const r = await api('login', { username: u, password: p });
         if (!r || !r.ok) {
@@ -2326,14 +2358,18 @@ createApp({
         this._syncRole_(this.me);
         this.view = 'home';
         this.loginPass = '';
+        this.loginStage = '正在读取订单';
         await this.refreshInbox();
+        this.loginStage = '';
       } catch (e) {
         this.loginErr = (e && e.message) || '登不进去，检查一下网络';
         this.loginPass = '';
+        this.loginStage = '';
       } finally {
         // ⚠ 必须用 finally：上面的早退分支也会跳过函数末尾的复位，
         //    结果登录失败后按钮一直卡在禁用/转圈，再也点不动。
         this.busy = false;
+        this.loginStage = '';
       }
     },
     async logout() {
@@ -3039,6 +3075,7 @@ ${evs}
 /*__PATCH7__*/
 /*__PATCH8__*/
 /*__PATCH9__*/
+/*__PATCH10__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
