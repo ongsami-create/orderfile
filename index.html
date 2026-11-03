@@ -223,6 +223,18 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
   animation:up .26s cubic-bezier(.32,.72,0,1);
 }
 @keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+/* 从**上往下滑出**的弹窗（图片 / 消息通知） */
+.mask.top{align-items:flex-start}
+.mask.top .sheet{border-radius:0 0 16px 16px;animation:down .28s cubic-bezier(.32,.72,0,1);max-height:88vh}
+@keyframes down{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+/* 长按 / 右键弹出的菜单 */
+.menubtn{display:block;width:100%;text-align:left;padding:13px 18px;font-size:15px;color:var(--ink)}
+.menubtn:active{background:rgba(0,0,0,.05)}
+.menubtn.off{color:var(--muted);font-size:13.5px}
+/* 图片弹窗的档案文字（不重要，用小字） */
+.sheet-hd h2.ph-t{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.1px}
+/* 图片本体：禁止长按选中文字，否则长按下载会先弹出「选中」 */
+.photoimg{width:100%;border-radius:12px;display:block;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .sheet-hd{padding:13px 16px 11px;border-bottom:.5px solid var(--sep);display:flex;align-items:center;gap:10px;flex:0 0 auto}
 .sheet-hd h2{margin:0;font-size:17px;font-weight:700;flex:1 1 auto;text-align:center}
 .sheet-bd{overflow:auto;-webkit-overflow-scrolling:touch;flex:1 1 auto}
@@ -454,10 +466,13 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
     </div>
 
     <div class="searchbar" v-if="nav==='orders' && tab==='quotes'">
-      <select class="field" style="flex:1 1 auto" v-model="quoteOwner" @change="switchOwner">
+      <select class="field" style="flex:1 1 auto" v-model="quoteOwner" @change="switchOwner" v-if="isAdmin">
         <option value="">我（{{meName}}）的报价</option>
         <option v-for="u in userList" :key="u.username" :value="u.username">{{u.displayName}} 的报价</option>
       </select>
+      <div class="field" v-else style="flex:1 1 auto;font-size:13px;color:var(--muted);display:flex;align-items:center">
+        只显示你自己的报价
+      </div>
     </div>
 
     <div class="wrap" v-if="nav==='orders'">
@@ -1127,7 +1142,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
   </div>
 
   <!-- ============ 铃铛消息 ============ -->
-  <div class="mask" v-if="sheet==='bell'" @click.self="closeSheet">
+  <div class="mask top" v-if="sheet==='bell'" @click.self="closeSheet">
     <div class="sheet">
       <div class="sheet-hd">
         <h2>消息</h2>
@@ -1185,17 +1200,36 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
   </div>
 
   <!-- ============ 照片查看 ============ -->
-  <div class="mask" v-if="sheet==='photo'" @click.self="closeSheet">
+  <div class="mask top" v-if="sheet==='photo'" @click.self="closeSheet">
     <div class="sheet">
       <div class="sheet-hd">
         <button class="linkbtn" @click="closeSheet">关闭</button>
-        <h2 style="text-align:center">{{(photoView && photoView.name) || '照片'}}</h2>
+        <h2 class="ph-t">{{(photoView && photoView.name) || '照片'}}</h2>
         <span style="width:34px"></span>
       </div>
-      <div class="sheet-bd" style="padding:16px">
+      <div class="sheet-bd" style="padding:14px">
         <div v-if="!photoView || photoView.loading" style="text-align:center;padding:40px;color:var(--muted)">正在读原图…</div>
         <div v-else-if="photoView.error" style="text-align:center;padding:40px;color:var(--danger,#d93a3a)">{{photoView.error}}</div>
-        <img v-else :src="photoView.src" :alt="photoView.name" style="width:100%;border-radius:12px;display:block">
+        <img v-else class="photoimg" :src="photoView.src" :alt="photoView.name"
+             @contextmenu.prevent="photoMenuOpen=true"
+             @touchstart="onPhotoTouchStart" @touchend="onPhotoTouchEnd"
+             @touchmove="onPhotoTouchCancel" @touchcancel="onPhotoTouchCancel">
+      </div>
+      <div class="sheet-ft" v-if="photoView && photoView.src && !photoView.error">
+        <button class="btn" style="width:100%" @click="savePhoto">
+          <span v-if="savingPhoto" class="spin"></span>⬇ 下载这张图片
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 图片长按 / 右键菜单 -->
+  <div class="mask" v-if="photoMenuOpen" @click.self="photoMenuOpen=false" style="align-items:center">
+    <div class="sheet" style="max-width:300px">
+      <div class="sheet-bd" style="padding:6px 0">
+        <button class="menubtn" @click="photoMenuOpen=false; savePhoto()">⬇ 下载图片</button>
+        <button class="menubtn" @click="photoMenuOpen=false; copyPhotoLink()">🔗 复制图片链接</button>
+        <button class="menubtn off" @click="photoMenuOpen=false">取消</button>
       </div>
     </div>
   </div>
@@ -1386,7 +1420,7 @@ function mockOrder(projNo) {
     events: [
       { id: 'a1', at: new Date(now-50*H).toISOString(), author: 'SSD', role: 'sales', type: '要求', replyChips: [], content: '客户要求所有板材用同一种颜色，色差不能超过一档。\n厨房台面高度要跟上次那单一样。', todos: [{id:'t1',text:'复量厨房台面高度'}], photos: [], docs: [], assignTo: 'FSD', participants: ['JIA'] },
       { id: 'a2', at: new Date(now-28*H).toISOString(), author: 'FSD', role: 'design', type: '方案', replyChips: ['收到'], content: '已量尺：厨房 3.2m × 2.1m，窗台下净高 92cm。\n出了 V1 方案，配色统一用暖白。', todos: [], photos: [], docs: [], assignTo: null, participants: [] },
-      { id: 'a3', at: new Date(now-6*H).toISOString(), author: 'SSD', role: 'sales', type: '沟通', replyChips: ['待确认','明天再联系'], content: '客户看了 V1，嫌把手太细。约周四下午带样品上门。', todos: [{id:'t2',text:'把手样品送到客户家'}], photos: [], docs: [], assignTo: null, participants: [] }
+      { id: 'a3', at: new Date(now-6*H).toISOString(), author: 'SSD', role: 'sales', type: '沟通', replyChips: ['待确认','明天再联系'], content: '客户看了 V1，嫌把手太细。约周四下午带样品上门。', todos: [{id:'t2',text:'把手样品送到客户家'}], photos: [{ name: '现场照片.png', url: 'https://drive.google.com/uc?id=MOCKPHOTO1' }], docs: [], assignTo: null, participants: [] }
     ]
   };
 }
@@ -1448,6 +1482,14 @@ function mockApi(action, p) {
       o.profile = Object.assign({}, o.profile, pf);
     }
     return { ok:true, order:o };
+  }
+  if (action === 'getFile') {
+    // mock：返回一张带图的 SVG（base64）—— 用来本地验证缩略图 / 图片弹窗 / 下载
+    const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>"
+      + "<rect width='160' height='160' fill='#1FB6C4'/>"
+      + "<text x='80' y='90' font-size='22' fill='#fff' text-anchor='middle'>MOCK</text></svg>";
+    const b64 = btoa(unescape(encodeURIComponent(svg)));
+    return { ok: true, mime: 'image/svg+xml', size: b64.length, data: b64 };
   }
   if (action === 'appendEvent') {
     const o = mockOrder(p.projNo);
@@ -1729,7 +1771,7 @@ createApp({
       cfgOk: false, cfgError: '', loading: false,
       diag: '', diagOpen: false, connTest: '',
       thumbs: {}, thumbBusy: {}, photoView: null,
-      quotesToken: 0,
+      quotesToken: 0, photoMenuOpen: false, savingPhoto: false,
       cfg: { users:{}, roles:{}, chipSets:{ types:{}, profileChips:[], contactPrefs:[], replies:[] } },
       me: '', myRole: 'sales',
       loginUser: '', loginPass: '', loginErr: '',
@@ -2012,6 +2054,58 @@ createApp({
         this.photoView.loading = false;
       }
     },
+    /* ---------- 图片长按 / 右键（2026-11-03） ---------- */
+    onPhotoTouchStart() {
+      const self = this;
+      clearTimeout(this._photoTouchT_);
+      this._photoTouchT_ = setTimeout(function () { self.photoMenuOpen = true; }, 550);
+    },
+    onPhotoTouchEnd() { clearTimeout(this._photoTouchT_); },
+    onPhotoTouchCancel() { clearTimeout(this._photoTouchT_); },
+    /** 下载图片：App 里走原生（存到「下载」目录），浏览器里用 <a download> */
+    async savePhoto() {
+      const pv = this.photoView;
+      if (!pv || !pv.src) { this.say('图片还没加载出来', 'err'); return; }
+      this.savingPhoto = true;
+      try {
+        const m = /^data:([^;]+);base64,(.*)$/.exec(pv.src);
+        const nb = _nativeBridge_();
+        if (nb && nb.saveImage && m) {
+          const raw = nb.saveImage(pv.name || 'photo', m[1], m[2]);
+          let r = null;
+          try { r = JSON.parse(raw); } catch (e) { r = { ok: false, error: '原生返回异常' }; }
+          if (r && r.ok) { this.say('已保存：' + (r.path || '下载目录'), 'ok', 3600); return; }
+          this.say('保存失败：' + ((r && r.error) || '未知原因'), 'err', 4000);
+          return;
+        }
+        // 浏览器降级：<a download>
+        const a = document.createElement('a');
+        a.href = pv.src;
+        a.download = (pv.name || 'photo') + (m && m[1].indexOf('png') >= 0 ? '.png' : '.jpg');
+        document.body.appendChild(a); a.click(); a.remove();
+        this.say('已触发下载', 'ok');
+      } catch (e) {
+        this.say('下载失败：' + ((e && e.message) || e), 'err');
+      } finally {
+        this.savingPhoto = false;
+      }
+    },
+    /** 复制图片链接（Drive 链接，登录状态的人才能打开） */
+    async copyPhotoLink() {
+      const pv = this.photoView;
+      if (!pv) return;
+      const src = pv.src || '';
+      const m = /id=([^&#]+)/.exec(src);
+      const link = (pv.link || (m ? 'https://drive.google.com/uc?id=' + m[1] : src));
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(link);
+          this.say('链接已复制', 'ok');
+          return;
+        }
+      } catch (e) { /* 降级 */ }
+      this.say('这台设备不支持复制，链接：' + link, 'ok', 5000);
+    },
     async copyDiag() {
       const txt = (this.diag || '没有诊断信息') + '\n\n--- OrderFile ' + (this.appVer || '') + ' ---';
       try {
@@ -2136,7 +2230,9 @@ createApp({
       const token = ++this.quotesToken;      // 切走/换人 → token 变 → 老结果作废
       this.loadingQuotes = true;
       try {
-        const r = await api('getPendingQuotes', { username: this.me, role: this.myRole, owner: this.quoteOwner });
+        // ⚠ 普通用户只能读自己的报价（后端也会校验，前端只是少给一个选项）
+        const owner = this.isAdmin ? this.quoteOwner : '';
+        const r = await api('getPendingQuotes', { username: this.me, role: this.myRole, owner: owner });
         if (token !== this.quotesToken) return;      // 已经切走了，别再刷界面
         this.quotes = r.quotes || [];
         this.quotesLoaded = true;
@@ -2701,6 +2797,7 @@ ${evs}
   if (b && b.parentNode) b.parentNode.removeChild(b);
 })();
 /*__PATCH4_THUMBS__*/
+/*__PATCH5__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
