@@ -1594,6 +1594,18 @@ function mockApi(action, p) {
     }
     return { ok:true, order:o };
   }
+  if (action === 'getThumbs') {
+    // mock：批量缩略图（一次给所有 id）—— 用来本地验证前端的批量路径
+    let ids = [];
+    try { ids = (typeof p.ids === 'string') ? JSON.parse(p.ids) : (p.ids || []); } catch (e) { ids = []; }
+    const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>"
+      + "<rect width='160' height='160' fill='#1FB6C4'/>"
+      + "<text x='80' y='90' font-size='22' fill='#fff' text-anchor='middle'>MOCK</text></svg>";
+    const b64 = btoa(unescape(encodeURIComponent(svg)));
+    const thumbs = {};
+    ids.forEach(id => { thumbs[id] = { mime: 'image/svg+xml', data: b64 }; });
+    return { ok: true, count: ids.length, thumbs: thumbs };
+  }
   if (action === 'getFile') {
     // mock：返回一张带图的 SVG（base64）—— 用来本地验证缩略图 / 图片弹窗 / 下载
     const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>"
@@ -1692,6 +1704,22 @@ function mockApi(action, p) {
 async function annApi(action, params) {
   // ⭐ App 里同样走原生桥
   const nb = _nativeBridge_();
+  // ⭐⭐ 优先走**异步** GET（v1.9+）—— 同步的会把 JS 线程冻住
+  if (!MOCK && nb && nb.httpGetAsync) {
+    try {
+      const qq = [];
+      qq.push('action=' + encodeURIComponent(action));
+      for (const k in (params || {})) {
+        const v = params[k];
+        if (v === undefined || v === null || v === '') continue;
+        qq.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(v)));
+      }
+      return await _nativeGetAsync_(nb, ANN_GAS_URL + '?' + qq.join('&'), 15000);
+    } catch (e) {
+      if (!e || !e.native) throw e;
+      _lastNativeErr_ = e.message || String(e);
+    }
+  }
   if (!MOCK && nb && nb.httpGet) {
     const qq = [];
     qq.push('action=' + encodeURIComponent(action));
@@ -1802,6 +1830,99 @@ function _nativeBridge_() {
   try { return (typeof window !== 'undefined' && window.OrderFileApp) ? window.OrderFileApp : null; }
   catch (e) { return null; }
 }
+/* ---------- ⭐ 异步原生桥（2026-11-05）----------
+ *
+ * 为什么必须有：
+ *   原生桥的 httpPost 是**同步阻塞**的，跑在 WebView 的 **JS 线程**上 →
+ *   调一次 = 整个页面的 JS 被冻住 → Vue 不渲染、动画停、按钮点不动。
+ *   实测：打开一张 12 张图的单 = 12 次 getFile × ~2 秒 =
+ *   **界面整整冻住 24~30 秒**（用户体感就是「卡死了」）。
+ *   而且同步的时候「最多 3 张并发」**根本是假的** —— 同步调用只能一张张排队。
+ *
+ * 异步之后：
+ *   · JS 线程全程不阻塞 → 界面照样动、照样能点
+ *   · 并发**真的**并发了 → 12 张图从 12 轮变 4 轮
+ *
+ * ⚠ 老 APK 没有 httpPostAsync → 自动回退到同步的老路（不会白屏）。
+ */
+let _nativeSeq_ = 0;
+const _nativePending_ = {};
+
+/** 原生后台线程跑完后回调这个（Java 用 evaluateJavascript 调） */
+window.__nativeDone = function (id, raw) {
+  const p = _nativePending_[id];
+  if (!p) return;
+  try { p(raw); } catch (e) { /* 忽略 */ }
+};
+
+/** 异步 POST：返回一个 Promise，原生干完再 resolve */
+function _nativePostAsync_(nb, action, params, limit) {
+  const payload = Object.assign({ action: action }, params);
+  const body = _formBody_(payload);
+  const ct = 'application/x-www-form-urlencoded';
+  const id = 'n' + (++_nativeSeq_);
+  return new Promise(function (resolve, reject) {
+    let settled = false;
+    // 原生自己也有超时，但万一它没回调（进程被杀）→ JS 侧兜底
+    const timer = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      delete _nativePending_[id];
+      const err = _timeoutErr_(limit);
+      err.native = true;              // → 落到 fetch 通道（双通道兜底）
+      reject(err);
+    }, limit + 5000);
+    _nativePending_[id] = function (raw) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      delete _nativePending_[id];
+      try { resolve(_parseNative_(raw)); }
+      catch (e) { reject(e); }
+    };
+    try { nb.httpPostAsync(GAS_URL, body, ct, limit, id); }
+    catch (e) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      delete _nativePending_[id];
+      reject(e);
+    }
+  });
+}
+
+/** 异步 GET（公告墙用） */
+function _nativeGetAsync_(nb, url, limit) {
+  const id = 'g' + (++_nativeSeq_);
+  return new Promise(function (resolve, reject) {
+    let settled = false;
+    const timer = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      delete _nativePending_[id];
+      const err = _timeoutErr_(limit);
+      err.native = true;
+      reject(err);
+    }, limit + 5000);
+    _nativePending_[id] = function (raw) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      delete _nativePending_[id];
+      try { resolve(_parseNative_(raw)); }
+      catch (e) { reject(e); }
+    };
+    try { nb.httpGetAsync(url, id); }
+    catch (e) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      delete _nativePending_[id];
+      reject(e);
+    }
+  });
+}
+
 /** 手写 URL 编码 —— 不依赖 URLSearchParams（老 WebView 可能没有） */
 function _formBody_(pairs) {
   const parts = [];
@@ -1856,6 +1977,16 @@ async function apiOnce(action, params, timeoutMs) {
   const limit = timeoutMs || API_TIMEOUT_MS;
   // ⭐ App 里走原生 HTTP 桥（WebView 的 fetch 到 GAS 会 Failed to fetch）
   const nb = _nativeBridge_();
+  // ⭐⭐ 优先走**异步**原生桥（v1.9+）—— 同步的会把 JS 线程冻住
+  if (nb && nb.httpPostAsync) {
+    try {
+      return await _nativePostAsync_(nb, action, params, limit);
+    } catch (e) {
+      if (!e || !e.native) throw e;
+      // 原生失败 → 记下来，继续试 fetch（双通道）
+      _lastNativeErr_ = e.message || String(e);
+    }
+  }
   if (nb && (nb.httpPostT || nb.httpPost)) {
     const payload = Object.assign({ action: action }, params);
     const body = _formBody_(payload);
@@ -1973,7 +2104,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/5 13:15:04';
+window.__PAGE_BUILD__ = '2026/11/5 13:56:24';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2273,8 +2404,53 @@ createApp({
       if (!id) return '';
       return this.thumbs[id] || '';
     },
-    /** 后台拉缩略图（最多 3 张并发，不挡界面） */
+    /**
+     * ⭐ 拉缩略图 —— **一次调用取一批**（2026-11-05）
+     *
+     * 原来是一张一张 getFile（每次 HTTP 都是独立的 GAS 执行 → 冷启动 ~2 秒）：
+     *   12 张图 = 12 次 HTTP ≈ **24~30 秒**（App 里还是 UI 冻住的 30 秒）
+     * 现在一次 getThumbs 取 12 张 → **1 次 HTTP ≈ 4 秒**。
+     *
+     * ⚠ 老后端没有 getThumbs → 会报错 → 自动退回一张张取（不会坏）。
+     */
     async loadThumbs(photos) {
+      const need = (photos || []).filter(p => {
+        const id = this.fileIdOf(p && p.url);
+        return id && !this.thumbs[id] && !this.thumbBusy[id];
+      });
+      if (!need.length) return;
+      const ids = need.map(p => this.fileIdOf(p.url)).filter(Boolean);
+      ids.forEach(id => { this.thumbBusy[id] = true; });
+      const BATCH = 12;                       // 后端一次最多 20 张
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const part = ids.slice(i, i + BATCH);
+        try {
+          const r = await api('getThumbs', { ids: part });
+          if (r && r.thumbs) {
+            for (const id in r.thumbs) {
+              const t = r.thumbs[id];
+              if (t && t.data) this.thumbs[id] = 'data:' + (t.mime || 'image/jpeg') + ';base64,' + t.data;
+            }
+          }
+          part.forEach(id => { this.thumbBusy[id] = false; });
+        } catch (e) {
+          // 批量失败（老后端 / 网络问题）→ 退回一张张取
+          for (const id of part) {
+            api('getFile', { id: id, thumb: '1' })
+              .then(r => {
+                if (r && r.ok && r.data) {
+                  this.thumbs[id] = 'data:' + (r.mime || 'image/jpeg') + ';base64,' + r.data;
+                }
+              })
+              .catch(() => { })
+              .finally(() => { this.thumbBusy[id] = false; });
+          }
+        }
+      }
+    },
+
+    /** 旧版：一张一张拉（保留给老后端兜底） */
+    async _loadThumbsOneByOne_(photos) {
       const need = (photos || []).filter(p => {
         const id = this.fileIdOf(p && p.url);
         return id && !this.thumbs[id] && !this.thumbBusy[id];
@@ -3278,6 +3454,7 @@ ${evs}
 /*__PATCH10__*/
 /*__PATCH11__*/
 /*__PATCH12__*/
+/*__PATCH13__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
