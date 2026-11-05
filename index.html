@@ -524,7 +524,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
 
     <div class="seg" v-if="nav==='orders'">
       <button :class="{on:tab==='following'}" @click="switchTab('following')">跟进中<span class="n">{{inbox.following.length}}</span></button>
-      <button :class="{on:tab==='quotes'}" @click="switchTab('quotes')">待处理<span class="n">{{quotes.length}}</span></button>
+      <button :class="{on:tab==='quotes'}" @click="switchTab('quotes')">待处理<span class="n">{{quotesAll.length}}</span></button>
       <button :class="{on:tab==='done'}" @click="switchTab('done')">已完成<span class="n">{{inbox.done.length}}</span></button>
     </div>
 
@@ -559,6 +559,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
               <span class="tag c" v-for="c in contactChips(r)" :key="'c'+c">{{c}}</span>
             </div>
             <div class="i-l3">
+              <span class="tag p" v-if="r._emptyArchive">还没记信息</span>
               <span class="tag t" v-if="r.lastType">{{r.lastType}}</span>
               <span class="tag r" v-for="c in (r.lastReplyChips||(r.lastReplyChip?[r.lastReplyChip]:[]))" :key="'r'+c">{{c}}</span>
               <span class="tag g" v-if="r.hasPhotos">🖼 {{r.lastPhotos}}</span>
@@ -1571,10 +1572,22 @@ function mockApi(action, p) {
       { projNo:'SSD09', customerName:'RAY ONG', customerContact:'012-345 6789', createdBy:'SSD', assignee:'FSD', participants:['JIA'], participantNames:['JIA'], lastAt:new Date(now-3*60000).toISOString(), lastAuthor:'SSD', lastAuthorName:'SAMI', lastType:'沟通', lastReplyChips:['已安排'], unread:true, hasPhotos:true, lastPhotos:3, hasDocs:true, lastDocs:1, done:false, clientProfile:{chips:['有小孩','洁癖','认死理'],contactPrefs:['只能下午联系']}, assigneeName:'STELLA' },
       { projNo:'PSD39', customerName:'SIEW HEONG', customerContact:'010-999 8888', createdBy:'PSD', assignee:'PSD', participants:[], participantNames:[], lastAt:new Date(now-5*H).toISOString(), lastAuthor:'PSD', lastAuthorName:'PEGGY', lastType:'要求', lastReplyChips:[], unread:false, hasPhotos:false, lastPhotos:0, hasDocs:false, lastDocs:0, done:false, clientProfile:null, assigneeName:'PEGGY' }
     ];
+    // ⭐ 2026-11-05 mock：一张「建了档但一条信息都没记」的空档案
+    //   → 用来本地验证它不进「跟进中」、而是出现在「待处理」里
+    const empties = [
+      { projNo:'MOCK-EMPTY-1', customerName:'空档案测试', customerContact:'013-000 0000',
+        createdBy:'SSD', assignee:'SSD', participants:[], participantNames:[],
+        lastAt:new Date(now-2*60000).toISOString(), lastAuthor:'', lastAuthorName:'',
+        lastType:'', lastReplyChips:[], unread:true, hasPhotos:false, lastPhotos:0,
+        hasDocs:false, lastDocs:0, done:false, clientProfile:null, assigneeName:'SAMI' }
+    ];
     const isAdmin = (p.role === 'admin');
     const mine = all.filter(r => isAdmin || r.createdBy === p.username || (r.participants||[]).indexOf(p.username) >= 0);
+    const myEmpty = empties.filter(r => isAdmin || r.createdBy === p.username);
     return { ok:true, following: mine.filter(r=>!r.done), done: mine.filter(r=>r.done),
-      followingCount: mine.filter(r=>!r.done).length, doneCount: mine.filter(r=>r.done).length };
+      empty: myEmpty,
+      followingCount: mine.filter(r=>!r.done).length, doneCount: mine.filter(r=>r.done).length,
+      emptyCount: myEmpty.length };
   }
   if (action === 'getPendingQuotes') {
     const quotes = [
@@ -2104,7 +2117,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/5 13:56:24';
+window.__PAGE_BUILD__ = '2026/11/5 15:36:36';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2162,15 +2175,22 @@ createApp({
       return Object.keys(u).map(k => Object.assign({ username:k }, u[k]))
         .sort((a,b) => (a.displayName||'').localeCompare(b.displayName||''));
     },
+    /** ⭐ 待处理 = 报价系统的报价 + OrderFile 的空档案（建了但还没记信息） */
+    quotesAll() {
+      return (this.quotes || []).concat(this.inbox.empty || []);
+    },
     curList() {
-      const base = this.tab === 'quotes' ? this.quotes : (this.tab === 'done' ? this.inbox.done : this.inbox.following);
+      // ⚠⚠️ computed 是**属性访问**，不是函数调用！
+      //    写 this.quotesAll() → 对数组调用 → "this.quotesAll is not a function" → 整页白屏
+      const base = this.tab === 'quotes' ? this.quotesAll
+                : (this.tab === 'done' ? this.inbox.done : this.inbox.following);
       const q = this.kw.trim().toLowerCase();
       if (!q) return base;
       return base.filter(r => this._hit(r, q));
     },
     tabTitle() { return this.tab === 'quotes' ? '待处理' : (this.tab === 'done' ? '已完成' : '跟进中'); },
     tabSub() {
-      if (this.tab === 'quotes') return '你在报价系统建了、还没开始跟进的单';
+      if (this.tab === 'quotes') return '你在报价系统建了、还没开始跟进的单 · 也有建了档案但还没记信息的单';
       if (this.tab === 'done') return '点进去还能看完整资料';
       return '最新更新的在最上面 · 红点是没看过的';
     },
@@ -2700,7 +2720,13 @@ createApp({
       this.busy = true;
       try {
         const r = await api('getInbox', { username: this.me, role: this.myRole });
-        this.inbox = { following: r.following || [], done: r.done || [] };
+        // ⭐ 2026-11-05：empty = 建了档但**一条信息都没记**的空档案
+        //   （后端 v2.4 才分出来；老后端没这个字段 → 空数组，不影响）
+        this.inbox = {
+          following: r.following || [],
+          done: r.done || [],
+          empty: (r.empty || []).map(x => Object.assign({}, x, { _emptyArchive: true }))
+        };
         _cachePut_('inbox', this.inbox);
         this.quotesLoaded = false;
       } catch (e) { if (!c) this.say('拉列表失败：' + e.message, 'err'); }
@@ -2735,7 +2761,8 @@ createApp({
     },
     async openRow(r) {
       // 「待处理」里的报价还没建档 → 先填第一条信息，提交后才建档并转到跟进中
-      if (this.tab === 'quotes' && !r.lastAt) {
+      // ⭐ 空档案（已建档但没记信息）→ 也直接开输入栏（补第一条信息）
+      if (this.tab === 'quotes' && (!r.lastAt || r._emptyArchive)) {
         // 预填报价里已有的画像（没有就空着，用户自己勾）
         const qp = r.clientProfile || {};
         this.form = {
@@ -3455,6 +3482,7 @@ ${evs}
 /*__PATCH11__*/
 /*__PATCH12__*/
 /*__PATCH13__*/
+/*__PATCH14__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
