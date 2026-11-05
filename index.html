@@ -281,6 +281,22 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
 .unread-div::before,.unread-div::after{content:'';flex:1 1 auto;height:1px;background:var(--red);opacity:.4}
 .unread-div span{font-size:11.5px;font-weight:700;color:var(--red);white-space:nowrap}
 
+/* ⭐ 照片可删（2026-11-05）—— 原来只能删文档，图片选错了没辙 */
+.thumbs .pbox{
+  width:74px;height:74px;border-radius:8px;overflow:hidden;background:#EFEFF4;
+  position:relative;display:flex;align-items:center;justify-content:center;
+}
+.thumbs .pbox img{width:100%;height:100%;object-fit:cover;display:block}
+.thumbs .pbox .tdel{
+  position:absolute;top:3px;right:3px;width:21px;height:21px;border-radius:50%;
+  background:rgba(0,0,0,.62);color:#fff;font-size:14px;font-weight:800;line-height:1;
+  display:flex;align-items:center;justify-content:center;z-index:2;padding:0;
+}
+/* 选文件时的进度提示 */
+.pickbusy{
+  font-size:12.5px;color:var(--brand);padding:0 15px 11px;font-weight:600;
+}
+
 /* 待办项（打勾框） */
 .todos{list-style:none;margin:8px 0 0;padding:0}
 .todos li{display:flex;align-items:flex-start;gap:9px;padding:6px 0;font-size:14.5px;line-height:1.5;cursor:pointer}
@@ -969,8 +985,14 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
             <label class="chip mini">📷 选照片<input type="file" accept="image/*" multiple hidden @change="pickImages"></label>
             <label class="chip mini">📎 选文件<input type="file" multiple hidden @change="pickFiles"></label>
           </div>
+          <div class="pickbusy" v-if="pickBusy">{{pickBusy}}</div>
           <div style="padding:0 15px 13px" v-if="form.photos.length">
-            <div class="thumbs"><img v-for="(p,i) in form.photos" :key="i" :src="p.preview" :alt="p.name"></div>
+            <div class="thumbs">
+              <div class="pbox" v-for="(p,i) in form.photos" :key="i">
+                <img :src="p.preview" :alt="p.name">
+                <button class="tdel" @click="removePhoto(form.photos, i)" title="删掉这张">×</button>
+              </div>
+            </div>
           </div>
           <div style="padding:0 15px 13px" v-if="form.docs.length">
             <div class="tli-chips">
@@ -1034,7 +1056,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       </div>
       <div class="sheet-ft">
         <button class="btn" :disabled="busy || !canSubmit" @click="submit">
-          <span v-if="busy" class="spin"></span>提交
+          <span v-if="submitting" class="spin"></span>{{ submitting ? '上传中…' : '提交' }}
         </button>
       </div>
     </div>
@@ -1119,8 +1141,14 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
             <label class="chip mini">📷 选照片<input type="file" accept="image/*" multiple hidden @change="pickNewImages"></label>
             <label class="chip mini">📎 选文件<input type="file" multiple hidden @change="pickNewFiles"></label>
           </div>
+          <div class="pickbusy" v-if="pickBusy">{{pickBusy}}</div>
           <div style="padding:0 15px 13px" v-if="newOrder.photos.length">
-            <div class="thumbs"><img v-for="(p,i) in newOrder.photos" :key="i" :src="p.preview" :alt="p.name"></div>
+            <div class="thumbs">
+              <div class="pbox" v-for="(p,i) in newOrder.photos" :key="i">
+                <img :src="p.preview" :alt="p.name">
+                <button class="tdel" @click="removePhoto(newOrder.photos, i)" title="删掉这张">×</button>
+              </div>
+            </div>
           </div>
           <div style="padding:0 15px 13px" v-if="newOrder.docs.length">
             <div class="tli-chips">
@@ -1163,7 +1191,7 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
       </div>
       <div class="sheet-ft">
         <button class="btn" :disabled="busy || !newOrder.projNo.trim()" @click="submitNewOrder">
-          <span v-if="busy" class="spin"></span>创建
+          <span v-if="submitting" class="spin"></span>{{ submitting ? '上传中…' : '创建' }}
         </button>
       </div>
     </div>
@@ -1806,6 +1834,17 @@ function _parseNative_(raw) {
   if (!data || data.ok === false) throw new Error((data && data.error) || '请求失败');
   return data;
 }
+/**
+ * ⭐ 幂等键（2026-11-05）
+ *
+ * 这一次提交的「身份证」。同一个 key 发多少次，后端都只写一次。
+ * 前端超时后用**同一个 key** 再问一次 → 后端认得出「这是同一次」→
+ * 已存过就秒回原结果，没存过就真的补上 → 用户永远不用猜「到底传上去没有」。
+ */
+function _newReqId_() {
+  return 'r' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
 /** 自己造一个「超时」错误 —— 名字要跟 AbortError 一起被 api() 认出来 */
 function _timeoutErr_(ms) {
   const e = new Error('服务器响应太慢（等了 ' + Math.round(ms/1000) + ' 秒）');
@@ -1814,12 +1853,20 @@ function _timeoutErr_(ms) {
   return e;
 }
 async function apiOnce(action, params, timeoutMs) {
+  const limit = timeoutMs || API_TIMEOUT_MS;
   // ⭐ App 里走原生 HTTP 桥（WebView 的 fetch 到 GAS 会 Failed to fetch）
   const nb = _nativeBridge_();
-  if (nb && nb.httpPost) {
+  if (nb && (nb.httpPostT || nb.httpPost)) {
     const payload = Object.assign({ action: action }, params);
+    const body = _formBody_(payload);
+    const ct = 'application/x-www-form-urlencoded';
     try {
-      return _parseNative_(nb.httpPost(GAS_URL, _formBody_(payload), 'application/x-www-form-urlencoded'));
+      // ⚠ 优先用带超时的 httpPostT（v1.8+ 才有）——
+      //    老 APK 只有 httpPost（写死 15 秒读超时）→ 提交大附件会被中途掐断。
+      //    用 httpPostT 能让「查状态」那次真的等到 90 秒。
+      const raw = nb.httpPostT ? nb.httpPostT(GAS_URL, body, ct, limit)
+                                : nb.httpPost(GAS_URL, body, ct);
+      return _parseNative_(raw);
     } catch (e) {
       if (!e || !e.native) throw e;
       // 原生失败 → 记下来，继续试 fetch（双通道）
@@ -1841,7 +1888,6 @@ async function apiOnce(action, params, timeoutMs) {
   //    而 GAS 返回的是 Access-Control-Allow-Origin: * → 会被判成 CORS 失败。
   //    保险起见一律不带凭证。
   const req = fetch(GAS_URL, { method:'POST', body:fd, credentials:'omit' });
-  const limit = timeoutMs || API_TIMEOUT_MS;
   let timer = null;
   const guard = new Promise((_, rej) => { timer = setTimeout(() => rej(_timeoutErr_(limit)), limit); });
   try {
@@ -1859,7 +1905,13 @@ async function apiOnce(action, params, timeoutMs) {
 const WRITE_ACTIONS = new Set([
   'appendEvent', 'createStandalone', 'createOrder', 'uploadFile', 'saveProfile',
   'toggleTodo', 'deleteOrder', 'saveConfig', 'submitConfirmation',
-  'addRequirement', 'invalidateConfirmations', 'markRead', 'readNotifications'
+  'addRequirement', 'invalidateConfirmations', 'markRead', 'readNotifications',
+  // ⚠⚠️ 2026-11-05 补：`submitInfo` 之前漏在这里！
+  //   2026-11-02 提速改造把主路径换成了 submitInfo，却没加进这个名单 →
+  //   它超时会走「读操作重试」→ 自动重发一次 →
+  //   第一次其实已经写成功的话 → 时间轴出现两条一样的信息（用户实测）。
+  //   加上以后：超时就抛错（绝不自动重发），由**幂等键**负责兜底。
+  'submitInfo'
 ]);
 async function api(action, params = {}) {
   if (MOCK) { await new Promise(r => setTimeout(r, 120)); return mockApi(action, params); }
@@ -1888,7 +1940,10 @@ async function api(action, params = {}) {
   }
 }
 
-function compressImage(file, maxSide = 1600, quality = 0.75) {
+// ⚠ 2026-11-05：1600px/0.75 → 1280px/0.62
+//    手机拍的照片 base64 之后一张 200~500KB → 一单 5 张就是 2MB+ 的表单
+//    → GAS 收 + Drive 存 = 20 秒起步。压小一点，肉眼看不出差别，快一倍多。
+function compressImage(file, maxSide = 1280, quality = 0.62) {
   return new Promise((resolve, reject) => {
     if (!/^image\//.test(file.type)) return resolve(file);
     const url = URL.createObjectURL(file);
@@ -1918,7 +1973,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/3 17:41:44';
+window.__PAGE_BUILD__ = '2026/11/5 13:15:04';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -1934,6 +1989,9 @@ createApp({
       loginStage: '',   // 登录进行中的阶段提示（正在连服务器 / 正在读取订单…）
       rememberPass: false, savedPass: '',
       _bellRead_: false,   // 本次会话点过铃铛（已标记已读 → 别再把角标设回来）
+      _submitLock: false,  // 提交锁（防连点，见 submit()）
+      submitting: false,    // 正在上传（按钮显示「上传中…」）
+      pickBusy: '',         // 选文件时的进度提示（「正在处理 3/8…」）
       appVer: '1.0',       // App 版本（原生桥读得到）
       pageVer: '未知',      // 页面版本（构建时注入的时间戳）
       view: 'login', sheet: '', prevSheet: '',
@@ -2660,6 +2718,7 @@ createApp({
         todoMode:false, todos:[], photos:[], docs:[], depts:[], participants:[], remindTo:'', done:false };
       this.prevSheet = '';
       this.sheet = 'neworder';
+      this._submitLock = false;      // ← 解锁：这是新的一次提交
     },
     addReplyToNew() {
       const r = this.draftReply.trim();
@@ -2673,23 +2732,20 @@ createApp({
     async pickNewImages(e) {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
-      for (const f of files) {
-        const c = await compressImage(f);
-        const b64 = await readB64(c);
-        this.newOrder.photos.push({ name: f.name, preview: URL.createObjectURL(c), data: b64 });
-      }
+      await this._addPicked_(this.newOrder.photos, files, true);
     },
     async pickNewFiles(e) {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
-      for (const f of files) {
-        const b64 = await readB64(f);
-        this.newOrder.docs.push({ name: f.name, data: b64 });
-      }
+      await this._addPicked_(this.newOrder.docs, files, false);
     },
     async submitNewOrder() {
+      if (this._submitLock) return;
+      this._submitLock = true;
       const o = this.newOrder;
+      if (!o.clientRequestId) o.clientRequestId = _newReqId_();
       this.busy = true;
+      this.submitting = true;
       try {
         const todos = o.todos.map(t => t.trim()).filter(Boolean);
         await this._doSubmit_({
@@ -2704,23 +2760,38 @@ createApp({
           photos: o.photos.map(p => ({ name: p.name, data: p.data })),
           docs: o.docs.map(d => ({ name: d.name, data: d.data })),
           assignTo: o.remindTo, participants: o.participants, participantDepts: o.depts,
-          done: o.done
+          done: o.done,
+          clientRequestId: o.clientRequestId
         }, '建好了');
-      } catch (e) { this.say(e.message, 'err', 6000); this.busy = false; }
+      } catch (e) {
+        this.say(e.message, 'err', 6000);
+        this.busy = false;
+      } finally {
+        this.submitting = false;
+      }
     },
 
     /* ---------- 提交（保存） ---------- */
     async _doSubmit_(payload, msg) {
       let r;
+      // ⭐ 幂等键：这次提交的身份证。
+      //    重试 / 用户手滑再点 / 超时后查状态 → 全用同一个 key → 后端只写一次。
+      payload.clientRequestId = payload.clientRequestId || _newReqId_();
       try {
         // ⚠ 2026-11-02 提速：整条保存链合成**一次**后端调用。
         //    以前是 uploadFile ×N → appendEvent → saveProfile → getOrder，
         //    每次都是独立的 GAS 执行（各自冷启动 ~2 秒），实测一单要 14~28 秒。
         r = await api('submitInfo', payload);
       } catch (e) {
-        // ⚠ 后端还是旧版（不认识 submitInfo）→ 退回逐个调用，保证保存功能不坏
-        if (!/unknown action/i.test(String((e && e.message) || ''))) throw e;
-        r = await this._submitLegacy_(payload);
+        if (/unknown action/i.test(String((e && e.message) || ''))) {
+          // ⚠ 后端还是旧版（不认识 submitInfo）→ 退回逐个调用，保证保存功能不坏
+          r = await this._submitLegacy_(payload);
+        } else if (e && e.mayHaveSucceeded) {
+          // ⭐ 超时了，但服务器**可能已经写进去** → 用同一个幂等键再问一次
+          r = await this._confirmSubmit_(payload);
+        } else {
+          throw e;
+        }
       }
       this.order = r.order;            // ← 响应里已经有档案，不用再调 getOrder
       this._buildTimeline();
@@ -2729,6 +2800,33 @@ createApp({
       if (this.sheet !== 'order') { this.prevSheet = ''; this.sheet = 'order'; }
       this.busy = false;
       this.refreshInbox();              // 列表后台刷新，不挡住「已保存」
+    },
+
+    /**
+     * ⭐ 超时后「查状态」（2026-11-05）
+     *
+     * 用户实测：「服务器响应太慢，等了 45 秒还没回，我不知道有没有上传到」
+     * → 重复点提交 → 时间轴出现两条一样的信息。
+     *
+     * 现在用**同一个 clientRequestId** 再调一次 submitInfo：
+     *   · 第一次其实成功了 → 后端认得这个 key → 立刻返回原结果（duplicate）
+     *   · 第一次真的没成功 → 这次就真的写进去
+     * 两种情况都是「只写一条」，用户也不用再猜。
+     */
+    async _confirmSubmit_(payload) {
+      this.say('服务器慢，正在确认有没有存进去…', '', 5000);
+      try {
+        // ⚠ 直接调 apiOnce（不走 api() 的「写操作不重试」分支），这次给足时间
+        const r = await apiOnce('submitInfo', payload, 90000);
+        if (r && r.duplicate) this.say('其实已经存好了，没重复写 ✅', 'ok', 4000);
+        else this.say('存好了', 'ok', 1800);
+        return r;
+      } catch (e2) {
+        const err = new Error('服务器一直没回，不确定有没有存进去。\n'
+          + '请到这张单的时间轴看一眼 —— 已经有内容了就别再提交了。');
+        err.unknown = true;
+        throw err;
+      }
     },
 
     /** 旧后端兜底：逐个调用（慢，但保证能用） */
@@ -2789,6 +2887,7 @@ createApp({
         quoteOwner: '' };
       this.prevSheet = this.sheet;
       this.sheet = 'compose';
+      this._submitLock = false;      // ← 解锁：这是新的一次提交
     },
     addReply() {
       const r = this.draftReply.trim();
@@ -2818,23 +2917,78 @@ createApp({
     async pickImages(e) {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
-      for (const f of files) {
-        const c = await compressImage(f);
-        const b64 = await readB64(c);
-        this.form.photos.push({ name: f.name, preview: URL.createObjectURL(c), data: b64 });
-      }
+      await this._addPicked_(this.form.photos, files, true);
     },
     async pickFiles(e) {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
+      await this._addPicked_(this.form.docs, files, false);
+    },
+
+    /**
+     * ⭐ 一次选多个 → **并行**处理 → **一次性**加进列表（2026-11-05）
+     *
+     * 原来是一张一张**串行**处理（await 一张再下一张）→
+     * 选 10 张要等 10 遍，而且是一张张冒出来，看起来像卡住了。
+     *
+     * 现在：分批并行（4 个一批，别一次把内存撑爆）+ 最后一次性 push +
+     *       处理中显示「正在处理 N 个照片…」。
+     */
+    async _addPicked_(bucket, files, isImage) {
+      if (!files || !files.length) return;
+      const CHUNK = 4;
+      const MAX_BYTES = 15 * 1024 * 1024;      // 超过 15MB 的别传（表单会撑爆）
+      let skipped = 0;
+      const ok = [];
       for (const f of files) {
-        const b64 = await readB64(f);
-        this.form.docs.push({ name: f.name, data: b64 });
+        if (f && f.size > MAX_BYTES) { skipped++; continue; }
+        ok.push(f);
+      }
+      if (skipped) this.say(skipped + ' 个文件超过 15MB，跳过了', 'err', 4000);
+      if (!ok.length) return;
+
+      this.pickBusy = '正在处理 ' + ok.length + (isImage ? ' 张照片' : ' 个文件') + '…';
+      const items = [];
+      try {
+        for (let i = 0; i < ok.length; i += CHUNK) {
+          const part = ok.slice(i, i + CHUNK);
+          const done = await Promise.all(part.map(async (f) => {
+            if (isImage) {
+              const c = await compressImage(f);
+              return { name: f.name, preview: URL.createObjectURL(c), data: await readB64(c) };
+            }
+            return { name: f.name, data: await readB64(f) };
+          }));
+          items.push.apply(items, done);
+          this.pickBusy = '正在处理 ' + Math.min(i + CHUNK, ok.length) + '/' + ok.length + '…';
+        }
+        // ⭐ 一次性加进去（不是一张张冒出来）
+        bucket.push.apply(bucket, items);
+      } catch (e) {
+        this.say('读取失败：' + (e && e.message || e), 'err', 4000);
+      } finally {
+        this.pickBusy = '';
       }
     },
+
+    /** ⭐ 删掉选错的照片（原来只有文档能删） */
+    removePhoto(bucket, i) {
+      const p = bucket[i];
+      if (p && p.preview) { try { URL.revokeObjectURL(p.preview); } catch (e) {} }
+      bucket.splice(i, 1);
+    },
     async submit() {
+      // ⚠⚠️ 防连点（2026-11-05）
+      //    App 里原生桥是**同步阻塞**的，按钮来不及变成禁用态 →
+      //    用户连点的点击全部排队 → 提交好几次 → 时间轴出现重复信息。
+      //    这个锁**只在打开新表单时解开**，同一次提交点多少下都只提交一次。
+      if (this._submitLock) return;
+      this._submitLock = true;
       const f = this.form;
+      // ⭐ 幂等键（表单级）：重试也用同一个 key → 后端认得出是同一次
+      if (!f.clientRequestId) f.clientRequestId = _newReqId_();
       this.busy = true;
+      this.submitting = true;
       try {
         const todos = f.todos.map(t => t.trim()).filter(Boolean);
         await this._doSubmit_({
@@ -2849,9 +3003,17 @@ createApp({
           docs: f.docs.map(d => ({ name: d.name, data: d.data })),
           assignTo: f.remindTo,
           participants: f.participants, participantDepts: f.depts,
-          done: f.done
+          done: f.done,
+          clientRequestId: f.clientRequestId
         }, '记好了');
-      } catch (e) { this.say(e.message, 'err', 6000); this.busy = false; }
+      } catch (e) {
+        this.say(e.message, 'err', 6000);
+        this.busy = false;
+      } finally {
+        this.submitting = false;
+        // ⚠ 失败时**不**解 _submitLock —— 防止用户狂点。
+        //    成功时也不解：用户想再提交一条内容，应该「取消」再重新打开表单。
+      }
     },
 
     /* ---------- 客户画像 ---------- */
@@ -3115,6 +3277,7 @@ ${evs}
 /*__PATCH9__*/
 /*__PATCH10__*/
 /*__PATCH11__*/
+/*__PATCH12__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
