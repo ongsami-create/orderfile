@@ -2104,7 +2104,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/5 13:56:24';
+window.__PAGE_BUILD__ = '2026/11/7 13:57:13';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2752,6 +2752,11 @@ createApp({
         };
         this.prevSheet = '';
         this.sheet = 'compose';
+        // ⚠⚠️ 2026-11-07 补：这里也必须解锁！
+        //   「待处理 → 创建」是**第三个**打开表单的入口，
+        //   2026-11-05 加防连点锁时只解锁了 openNewOrder / openCompose → 漏了这个 →
+        //   ⇒ 建完第一条信息流后，第二条点「提交」**毫无反应**（用户实测反馈）。
+        this._submitLock = false;      // ← 解锁：这是新的一次提交
         return;
       }
       await this.openOrder(r.projNo);
@@ -2916,7 +2921,11 @@ createApp({
       await this._addPicked_(this.newOrder.docs, files, false);
     },
     async submitNewOrder() {
-      if (this._submitLock) return;
+      // ⚠⚠️ 2026-11-07：同 submit() —— 残留锁放行（真在提交中才挡连点）
+      if (this._submitLock) {
+        if (this.submitting) return;
+        this._submitLock = false;
+      }
       this._submitLock = true;
       const o = this.newOrder;
       if (!o.clientRequestId) o.clientRequestId = _newReqId_();
@@ -2942,6 +2951,8 @@ createApp({
       } catch (e) {
         this.say(e.message, 'err', 6000);
         this.busy = false;
+        // ⚠⚠️ 2026-11-07：失败 → 解锁，能重试（同 submit()）
+        this._submitLock = false;
       } finally {
         this.submitting = false;
       }
@@ -3158,7 +3169,18 @@ createApp({
       //    App 里原生桥是**同步阻塞**的，按钮来不及变成禁用态 →
       //    用户连点的点击全部排队 → 提交好几次 → 时间轴出现重复信息。
       //    这个锁**只在打开新表单时解开**，同一次提交点多少下都只提交一次。
-      if (this._submitLock) return;
+      // ⚠⚠️ 2026-11-07 修 bug：**残留锁会把用户彻底卡死**
+      //   原逻辑：锁在开头置位，失败时**不解** →
+      //   ① 提交失败后这张表单**再也提交不了**（点「提交」毫无反应）
+      //   ② 「待处理 → 创建」那个入口从来不重置锁 →
+      //      ⇒ 建完第一条信息流后，**第二条永远建不了**（用户实测）
+      //   现在：
+      //     · 真的在提交中（submitting）→ 忽略连点（防狂点的原意不变）
+      //     · 锁在但没在提交 → 判定为**残留锁** → 放行
+      if (this._submitLock) {
+        if (this.submitting) return;         // 正在提交 → 忽略连点
+        this._submitLock = false;             // 残留锁 → 放行
+      }
       this._submitLock = true;
       const f = this.form;
       // ⭐ 幂等键（表单级）：重试也用同一个 key → 后端认得出是同一次
@@ -3185,10 +3207,13 @@ createApp({
       } catch (e) {
         this.say(e.message, 'err', 6000);
         this.busy = false;
+        // ⚠⚠️ 2026-11-07：失败 → **解开锁**，让用户能重试这张表单。
+        //    网络抖一下就把这张单永久卡死，是不可接受的。
+        //    重试用的是**同一个 clientRequestId** → 后端幂等 → 不会写两遍。
+        this._submitLock = false;
       } finally {
         this.submitting = false;
-        // ⚠ 失败时**不**解 _submitLock —— 防止用户狂点。
-        //    成功时也不解：用户想再提交一条内容，应该「取消」再重新打开表单。
+        // 成功时不解锁：这张表单已经提交过了，想再提交请「取消」再重新打开。
       }
     },
 
@@ -3455,6 +3480,7 @@ ${evs}
 /*__PATCH11__*/
 /*__PATCH12__*/
 /*__PATCH13__*/
+/*__PATCH_SUBMITLOCK__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
