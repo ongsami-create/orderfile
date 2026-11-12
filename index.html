@@ -2104,7 +2104,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/12 13:20:32';
+window.__PAGE_BUILD__ = '2026/11/12 13:45:20';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2922,11 +2922,13 @@ createApp({
     async pickNewImages(e) {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
+      if (!files.length) { this._pickFailed_('照片'); return; }
       await this._addPicked_(this.newOrder.photos, files, true);
     },
     async pickNewFiles(e) {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
+      if (!files.length) { this._pickFailed_('文件'); return; }
       await this._addPicked_(this.newOrder.docs, files, false);
     },
     async submitNewOrder() {
@@ -3113,12 +3115,32 @@ createApp({
     async pickImages(e) {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
+      if (!files.length) { this._pickFailed_('照片'); return; }
       await this._addPicked_(this.form.photos, files, true);
     },
     async pickFiles(e) {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
+      if (!files.length) { this._pickFailed_('文件'); return; }
       await this._addPicked_(this.form.docs, files, false);
+    },
+
+    /**
+     * ⭐ 选择器一个文件都没返回（2026-11-12）
+     *
+     * 用户实测：小米等国产 ROM 的**原生图库**会「选完了但一个文件都不返回」
+     * → 网页 files.length = 0 → 之前**什么都不提示**，用户以为坏了。
+     * 现在明确报错，并让人去「我的 → 连接诊断」看选择器的详细信息。
+     */
+    _pickFailed_(what) {
+      let detail = '';
+      try {
+        const nb = _nativeBridge_();
+        if (nb && nb.lastPickInfo) detail = '\n\n' + nb.lastPickInfo();
+      } catch (e) { }
+      try { console.warn('选照片返回 0 个文件' + detail); } catch (e) { }
+      this.say('没拿到' + what + '（选择器返回了 0 个文件）—— '
+             + '看「我的 → 连接诊断 → 测试连接」里的选照片信息' + detail, 'err', 9000);
     },
 
     /**
