@@ -2104,7 +2104,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/7 13:57:13';
+window.__PAGE_BUILD__ = '2026/11/12 13:20:32';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2379,6 +2379,15 @@ createApp({
         lines.push('【通道1 · 原生 HTTP 桥】');
         lines.push('后端 ' + GAS_URL + ' → ' + nb.testConnection(GAS_URL + '?action=health'));
         lines.push('公告 ' + ANN_GAS_URL + ' → ' + nb.testConnection(ANN_GAS_URL + '?action=health'));
+        lines.push('');
+      }
+      // ⚠ 选照片的诊断（APK v1.10+ 才有）
+      //   「返回: N 个文件」= 选择器这次实际给了几个
+      //   如果网页要多选、但返回只有 1 → 选择器只给了单选（ROM 的问题）
+      if (nb && nb.lastPickInfo) {
+        lines.push('【选照片 · 文件选择器】');
+        lines.push(nb.lastPickInfo());
+        lines.push('（返回 1 个 = 这台手机的选择器只给单选；网页要多选但没生效就是这里）');
         lines.push('');
       }
       lines.push('【通道2 · 网页 fetch】');
@@ -3151,6 +3160,16 @@ createApp({
         }
         // ⭐ 一次性加进去（不是一张张冒出来）
         bucket.push.apply(bucket, items);
+        // ⚠⚠️ 2026-11-12：**告诉用户这次一共加了几张**
+        //   「选照片」的选择器能不能多选，**只有这个数字能说明白**：
+        //     · 一次加进来 N 张 → 选择器支持多选（或你只选了一张）
+        //     · 只加了 1 张   → 这台手机的选择器只给了单选
+        //   只加 1 张时额外提示「再点一次『选照片』可以继续加」——
+        //   照片是**累加**的（bucket.push），不会覆盖前面选的。
+        this.say('已添加 ' + items.length + (isImage ? ' 张照片' : ' 个文件')
+          + (items.length === 1
+              ? '（这台手机一次只能选一张，再点一次「' + (isImage ? '选照片' : '选文件') + '」可以继续加）'
+              : ''), 'ok', 4500);
       } catch (e) {
         this.say('读取失败：' + (e && e.message || e), 'err', 4000);
       } finally {
@@ -3481,6 +3500,7 @@ ${evs}
 /*__PATCH12__*/
 /*__PATCH13__*/
 /*__PATCH_SUBMITLOCK__*/
+/*__PATCH_PICKER__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
