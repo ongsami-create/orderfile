@@ -2044,9 +2044,10 @@ const WRITE_ACTIONS = new Set([
   //   加上以后：超时就抛错（绝不自动重发），由**幂等键**负责兜底。
   'submitInfo'
 ]);
-async function api(action, params = {}) {
+async function api(action, params = {}, timeoutMs) {
   if (MOCK) { await new Promise(r => setTimeout(r, 120)); return mockApi(action, params); }
-  try { return await apiOnce(action, params); }
+  // ⚠ 2026-11-17：允许调用方**单独放宽超时**（不用动全局 API_TIMEOUT_MS）
+  try { return await apiOnce(action, params, timeoutMs); }
   catch (e) {
     // 要重试的两种：超时（TimeoutError/AbortError）+ 网络层失败（TypeError）
     const isTimeout = e && (e.name === 'AbortError' || e.name === 'TimeoutError');
@@ -2063,7 +2064,7 @@ async function api(action, params = {}) {
     }
     // 读操作重试是安全的（不会写数据）
     await new Promise(r => setTimeout(r, 900));
-    try { return await apiOnce(action, params, 45000); }
+    try { return await apiOnce(action, params, Math.max(45000, timeoutMs || 0)); }
     catch (e2) {
       if (e2 && (e2.name === 'AbortError' || e2.name === 'TimeoutError')) { const err = new Error('服务器响应太慢，等了 45 秒还没回。'); err.slow = true; throw err; }
       throw e2;
@@ -2104,7 +2105,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/17 13:14:46';
+window.__PAGE_BUILD__ = '2026/11/17 13:42:39';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2789,7 +2790,9 @@ createApp({
       }
       this.busy = true;
       try {
-        const r = await api('getOrder', { projNo, username: this.me, role: this.myRole });
+        // ⚠⚠ 2026-11-17：getOrder 给 **45 秒**（默认只有 20 秒）
+      //   GAS 冷启动实测能到 108 秒（实测 health 一次 107,989 ms）→ 20 秒会白等才报错
+      const r = await api('getOrder', { projNo, username: this.me, role: this.myRole }, 45000);
         this.order = r.order;
         this._buildTimeline();
         this.prevSheet = '';
@@ -2897,7 +2900,7 @@ createApp({
       const projNo = this.search.projNo.trim();
       this.busy = true;
       try {
-        await api('getOrder', { projNo, username: this.me, role: this.myRole });
+        await api('getOrder', { projNo, username: this.me, role: this.myRole }, 45000);
         if (this.search.chips.length) {
           await api('saveProfile', { projNo, username: this.me, profile: { chips: this.search.chips } });
         }
@@ -3531,6 +3534,7 @@ ${evs}
 /*__PATCH13__*/
 /*__PATCH_SUBMITLOCK__*/
 /*__PATCH_PICKER__*/
+/*__PATCH_GETORDER__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
