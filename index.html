@@ -2104,7 +2104,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/12 13:45:20';
+window.__PAGE_BUILD__ = '2026/11/17 13:14:46';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2214,20 +2214,28 @@ createApp({
     stamp() { return new Date().toLocaleString('zh-CN'); },
     // 时间轴条数（不含被删除的）—— ⚠️ 必须在 computed 里，
     // 放 methods 的话模板拿到的是函数本身，会显示成「FUNCTION () { [NATIVE CODE] }」
-    /** 铃铛排序：重要的在前（完成 > 提醒某人 > 要求/变更 > 普通），同级按时间新→旧 */
+    /**
+     * ⭐ 铃铛排序：**按最后更新时间倒序**（最新的在最上面）
+     *
+     * ⚠⚠️ 2026-11-17 Sami 拍板改成纯时间倒序。
+     *    原来是「重要的在前」（完成 6 > 提醒 5 > 要求 4 > … > 普通 2 > 删除/编辑 1），
+     *    权重优先、时间只排第二 —— 结果**3 天前的「要求」会压在 10 分钟前的「沟通」上面**，
+     *    看起来像「新的消息没出来」。现在一律按时间，新的永远在最上面。
+     *
+     * ⚠ 时间比较**不能用 localeCompare** —— 那是本地化排序，对 ISO 时间串不可靠
+     *   （不同 locale / ICU 版本结果可能不同）→ 先转时间戳比，解析不了再退回字符串比。
+     */
     notifsSorted() {
-      const w = (n) => {
-        if (n.markDone) return 6;
-        if (n.assignToName) return 5;
-        if (n.type === '要求') return 4;
-        if (n.type === '变更' || n.type === '确认' || n.type === '注意事项') return 3;
-        if (n.deleted || n.edited) return 1;
-        return 2;
+      const ts = (s) => {
+        const t = Date.parse(String(s || ''));
+        return isNaN(t) ? null : t;
       };
       return this.notifs.slice().sort((a, b) => {
-        const d = w(b) - w(a);
-        if (d) return d;
-        return String(b.at || '').localeCompare(String(a.at || ''));
+        const ta = ts(a.at), tb = ts(b.at);
+        if (ta !== null && tb !== null) return tb - ta;          // 新的在前
+        const sa = String(a.at || ''), sb = String(b.at || '');
+        if (sa === sb) return 0;
+        return sb > sa ? 1 : -1;                                 // 兜底：字符串倒序
       });
     },
     /** 本地缓存占用（给「我的」页显示） */
