@@ -2251,7 +2251,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/17 22:50:31';
+window.__PAGE_BUILD__ = '2026/11/18 00:33:43';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2349,15 +2349,19 @@ createApp({
     },
     emptyTitle() {
       if (this.tab === 'quotes') return '没有待跟进的报价';
-      // ⚠⚠ 2026-11-17 v2.8.1（C1）：**用户其实有单**，只是不在列表窗口里
-      //   ⇒ 绝不能再让他去「新建一个单」（会**重复建单**）
-      if (this.inboxTotal > 0) return '你的 ' + this.inboxTotal + ' 单不在最近窗口里';
+      // ⚠⚠ 2026-11-17 v2.8.2（N2）：按**当前 tab** 的计数分支
+      //   ⛔ **不要用 inboxTotal** —— 它是「跟进中 + 已完成 + 空壳」的**跨 tab** 总数
+      //   ⇒ 在「已完成」tab 空、而单都在「跟进中」时会说「你的 20 单不在最近窗口里」
+      //     ⇒ 错的（单子就在隔壁 tab）⇒ 还会把「新建一个单」提示**藏掉**
+      //   ⇒ tabTotal = 跟进中 → inboxFollowCount；已完成 → inboxDoneCount
+      const n = this.tabTotal;
+      if (n > 0) return '你的 ' + n + ' 单不在最近窗口里';
       return this.tab === 'done' ? '还没有完成的事' : '暂时没有在跟进的';
     },
     emptyHint() {
       if (this.tab === 'quotes') return '你在报价系统建的单会出现在这里，加了资料就转到「跟进中」。';
-      // ⚠⚠ 同上：有单但列表空 ⇒ 告诉他**怎么找到**，不是叫他再建一个
-      if (this.inboxTotal > 0) return '用上面的搜索框找（单号 / 客户名 / 电话都能搜）。';
+      // ⚠⚠ 同上：按**当前 tab** 的计数（不是跨 tab 的总数）
+      if (this.tabTotal > 0) return '用上面的搜索框找（单号 / 客户名 / 电话都能搜）。';
       if (this.tab === 'done') return '有人点「完成」之后会出现在这里。';
       return '点右下角 ＋ 新建一个单，或去「待处理」挑一张报价。';
     },
