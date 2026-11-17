@@ -2205,7 +2205,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/17 19:24:51';
+window.__PAGE_BUILD__ = '2026/11/17 20:11:10';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2913,7 +2913,14 @@ createApp({
       // 防抖：每敲一个字就问一次后端太贵（后端要读全量索引）
       if (this.searchTimer) { clearTimeout(this.searchTimer); this.searchTimer = 0; }
       const q = this.kw.trim();
-      if (!q) { this.searchHits = []; this.searchHitsQ = ''; this.searchErr = ''; return; }
+      if (!q) {
+        this.searchHits = []; this.searchHitsQ = ''; this.searchErr = '';
+        // ⚠ 2026-11-17：补这一行 —— 原来不清 searching，
+        //   而在途请求会在「关键词已变」处提前 return ⇒ 永远走不到下面的 searching=false
+        //   ⇒ searching 卡在 true（目前不可见，但迟早会露出来）
+        this.searching = false;
+        return;
+      }
       this.searchTimer = setTimeout(() => { this.searchTimer = 0; this._runSearch_(q); }, 350);
     },
     async _runSearch_(q) {
