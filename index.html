@@ -1554,20 +1554,30 @@ function mockOrder(projNo) {
 }
 /* ⭐ 2026-11-17：mock 的订单数据（getInbox / searchOrders **共用同一份**）
    ⚠ 原来 mock 只有 2 条单 ⇒ limit=50 一页就装完 ⇒「加载更多」永远测不到
-   ⚠ 不要在两个分支里各写一份数组（改起来会走偏） */
+   ⚠ 不要在两个分支里各写一份数组（改起来会走偏）
+   ⚠ mockN= 旋钮（?mockN=79）：生成多少条 MO 单（默认 120）
+   ⚠   ⇒ 用来在浏览器里跑「用户只有 80 单」的真实场景：
+   ⚠      79 + SSD09 = 80 单 ⇒ 50 < 80 ⇒ 「加载更多」**必须出现**
+   ⚠      （而 !!r.truncated 会误判成「没有更多」⇒ 这就是硬要求 ① 的实测点） */
 function _mockOrders_() {
   const now = Date.now(), H = 3600000;
   const all = [
     { projNo:'SSD09', customerName:'RAY ONG', customerContact:'012-345 6789', createdBy:'SSD', assignee:'FSD', participants:['JIA'], participantNames:['JIA'], lastAt:new Date(now-3*60000).toISOString(), lastAuthor:'SSD', lastAuthorName:'SAMI', lastType:'沟通', lastReplyChips:['已安排'], unread:true, hasPhotos:true, lastPhotos:3, hasDocs:true, lastDocs:1, done:false, clientProfile:{chips:['有小孩','洁癖','认死理'],contactPrefs:['只能下午联系']}, assigneeName:'STELLA' },
     { projNo:'PSD39', customerName:'SIEW HEONG', customerContact:'010-999 8888', createdBy:'PSD', assignee:'PSD', participants:[], participantNames:[], lastAt:new Date(now-5*H).toISOString(), lastAuthor:'PSD', lastAuthorName:'PEGGY', lastType:'要求', lastReplyChips:[], unread:false, hasPhotos:false, lastPhotos:0, hasDocs:false, lastDocs:0, done:false, clientProfile:null, assigneeName:'PEGGY' }
   ];
-  // ⭐ 2026-11-17：再补 120 条 ⇒ SSD 登录能看到 121 条（120 + SSD09）
-  //   ⇒ limit=50 ⇒ 3 页（50 / 50 / 21）⇒「加载更多」能测
-  for (let i = 1; i <= 120; i++) {
-    const n = (i < 10 ? '0' + i : '' + i);
+  let n = 120;
+  try {
+    const mm = location.search.match(/[?&]mockN=(\d+)/);
+    const qn = mm ? parseInt(mm[1], 10) : 120;
+    if (!isNaN(qn) && qn >= 0) n = qn;
+  } catch (e) { n = 120; }
+  // ⭐ 2026-11-17：再补 n 条 ⇒ SSD 登录能看到 n+1 条（n + SSD09）
+  //   ⇒ limit=50 ⇒ 默认 121 条 = 3 页（50 / 50 / 21）⇒「加载更多」能测
+  for (let i = 1; i <= n; i++) {
+    const nn = (i < 10 ? '0' + i : '' + i);
     all.push({
-      projNo: 'MO' + n,
-      customerName: 'MOCK CUSTOMER ' + n,
+      projNo: 'MO' + nn,
+      customerName: 'MOCK CUSTOMER ' + nn,
       customerContact: '011-222 ' + (1000 + i),
       createdBy: 'SSD', assignee: 'SSD',
       participants: [], participantNames: [],
@@ -1580,7 +1590,12 @@ function _mockOrders_() {
   }
   return all;
 }
-function mockApi(action, p) {
+/** mock 的「旋钮」：从 URL 读开关（?oldBackend=1 / ?mockSearchLag=1） */
+function _mockFlag_(name) {
+  try { return location.search.indexOf('?' + name + '=1') >= 0 || location.search.indexOf('&' + name + '=1') >= 0; }
+  catch (e) { return false; }
+}
+async function mockApi(action, p) {
   const users = {};
   Object.keys(MOCK_USERS).forEach(k => {
     // ⚠ 密码**不能**给到前端（真后端的 getDetailedUsers 也故意不给）
@@ -1635,7 +1650,13 @@ function mockApi(action, p) {
     const q = String(p.q || '').trim().toLowerCase();
     const isAdmin = (p.role === 'admin');
     const all = _mockOrders_();
-    const mine = all.filter(r => isAdmin || r.createdBy === p.username || (r.participants||[]).indexOf(p.username) >= 0);
+    // ⚠⚠ 2026-11-17 修法轮 F1：oldBackend=1 ⇒ 模拟**Task 6 之前**的后端
+    //   ① **不做可见性过滤**（会返回**别人的单** —— 这正是部署窗口期的泄露面）
+    //   ② **不返回 v 标记** ⇒ 前端会拒绝这份结果 ⇒ 不泄露
+    //   ⇒ 用来在浏览器里实测「后端没升级时不会泄露别人的单」
+    const oldBackend = _mockFlag_('oldBackend');
+    const mine = oldBackend ? all
+      : all.filter(r => isAdmin || r.createdBy === p.username || (r.participants||[]).indexOf(p.username) >= 0);
     const hits = q ? mine.filter(r => {
       const fs = [r.projNo, r.customerName, r.customerContact, r.salesName, r.lastAuthorName, r.assigneeName];
       for (let i=0;i<fs.length;i++) if (fs[i] && String(fs[i]).toLowerCase().indexOf(q) >= 0) return true;
@@ -1643,7 +1664,16 @@ function mockApi(action, p) {
     }) : [];
     // ⚠ 兜底用**各自**的 projNo（a.lastAt || a.projNo）—— 别写成 b.projNo
     hits.sort((a,b) => String(b.lastAt || b.projNo).localeCompare(String(a.lastAt || a.projNo)));
-    return { ok:true, orders: hits, count: hits.length };
+    // ⚠ mockSearchLag=1 ⇒ 模拟「命中的单越多越慢」（真实后端也是这个趋势）
+    //   ⇒ 用来在浏览器里复现**搜索竞态**（旧关键词的结果后到，盖掉新关键词）
+    if (_mockFlag_('mockSearchLag')) {
+      await new Promise(r => setTimeout(r, hits.length > 10 ? 3000 : 200));
+    }
+    const res = { ok:true, orders: hits, count: hits.length };
+    // ⚠ v:2 = 「本返回**做了可见性过滤**」的版本标记（跟真后端对齐）
+    //   前端只认 v === 2 ⇒ 旧后端（没有 v）的返回一律丢掉 ⇒ 不泄露
+    if (!oldBackend) res.v = 2;
+    return res;
   }
   if (action === 'getPendingQuotes') {
     const quotes = [
@@ -2175,7 +2205,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/17 18:46:11';
+window.__PAGE_BUILD__ = '2026/11/17 19:24:51';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2215,6 +2245,7 @@ createApp({
       inboxDoneCount: 0,       // 「已完成」可见总条数（未切片）
       inboxTruncated: false,   // 活动索引真的砍掉过行 ⇒ 更早的单要用搜索找
       searchHits: [],          // 服务端搜索命中的单（能搜到活动索引窗口之外的老单）
+      searchHitsQ: '',         // ⚠ searchHits 是**哪个关键词**的结果（防竞态用）
       searchErr: '',           // 服务端搜索失败时的提示
       searchTimer: 0,          // 搜索防抖计时器
       busy: false, toast: '', toastKind: '', toastTimer: null,
@@ -2251,7 +2282,11 @@ createApp({
       // ⚠ 2026-11-17：订单 tab 的搜索结果 = **服务端命中**（能搜到更早的老单）
       //   + **已加载行里客户端命中的行**（后端没升级时也还能搜，服务端命中的排前面）
       const local = base.filter(r => this._hit(r, q));
-      const remote = this.searchHits.filter(r => (this.tab === 'done') ? !!r.done : !r.done);
+      // ⚠⚠ 防竞态：searchHits 是**哪个关键词**的结果 —— 关键词已经变了就别用
+      //   （不然旧关键词的命中会跟新关键词的本地命中混在一起显示）
+      const remote = (this.searchHitsQ === q)
+        ? this.searchHits.filter(r => (this.tab === 'done') ? !!r.done : !r.done)
+        : [];
       const seen = {};
       const out = [];
       remote.forEach(r => { if (r && r.projNo && !seen[r.projNo]) { seen[r.projNo] = 1; out.push(r); } });
@@ -2850,8 +2885,13 @@ createApp({
           done: this.inbox.done.concat(addD)
         };
         this.inboxOffset = next;
-        this.inboxFollowCount = r.followingCount || this.inboxFollowCount;
-        this.inboxDoneCount = r.doneCount || this.inboxDoneCount;
+        // ⚠⚠ 2026-11-17 修法轮 F6：不能用「||」兜底 ——
+        //   服务端**真的**返回 0 时（这一页之后没有单了），「|| this.inboxFollowCount」
+        //   会把**旧值**留下来 ⇒ 「共 N 单」一直偏大。
+        //   ⇒ 只有「服务端没给这个字段」（null / undefined）才沿用旧值。
+        //   ⚠⚠ 注释里**不许**出现反引号 —— 会提前闭合本补丁的模板字符串！
+        this.inboxFollowCount = (r.followingCount != null) ? r.followingCount : this.inboxFollowCount;
+        this.inboxDoneCount = (r.doneCount != null) ? r.doneCount : this.inboxDoneCount;
         this.inboxTruncated = !!r.truncated;
         // ⚠⚠ 同 refreshInbox：判断依据是「本页行数 < 可见总条数」，不是 truncated
         this.inboxMore = (this.inbox.following.length < (r.followingCount || 0))
@@ -2873,22 +2913,38 @@ createApp({
       // 防抖：每敲一个字就问一次后端太贵（后端要读全量索引）
       if (this.searchTimer) { clearTimeout(this.searchTimer); this.searchTimer = 0; }
       const q = this.kw.trim();
-      if (!q) { this.searchHits = []; this.searchErr = ''; return; }
+      if (!q) { this.searchHits = []; this.searchHitsQ = ''; this.searchErr = ''; return; }
       this.searchTimer = setTimeout(() => { this.searchTimer = 0; this._runSearch_(q); }, 350);
     },
     async _runSearch_(q) {
+      // ⚠ 关键词统一**转小写**再比 —— curList 里的 q 也是小写的
+      //   （不然 searchHitsQ='MO07' vs curList 的 q='mo07' ⇒ 永远不相等 ⇒ 服务端命中被丢掉）
+      const qn = String(q || '').trim().toLowerCase();
       this.searching = true;
       try {
         // ⚠ 不传 deep ⇒ 后端只搜索引，不扫档案正文（快）
-        const r = await api('searchOrders', { q: q, username: this.me, role: this.myRole });
+        const r = await api('searchOrders', { q: qn, username: this.me, role: this.myRole });
+        // ⚠⚠ 2026-11-17 部署窗口保护（Task 6 修法轮 F1）：
+        //   **旧后端**（Task 6 之前）的 searchOrders **不做可见性过滤**
+        //   ⇒ 会把**别人的单**返回来（客户名 / 电话 / 单号）⇒ 绝不显示。
+        //   ⇒ 只认新后端（返回带 v:2 标记）的结果；旧后端 → throw → 走下面的兜底。
+        if (!r || r.v !== 2) throw new Error('后端还没升级');
+        // ⚠⚠ 竞态：等这个请求的时候用户可能又改关键词了
+        //   ⇒ 关键词已变 ⇒ **丢弃**本次结果（不然旧结果会盖掉新结果）
+        if (this.kw.trim().toLowerCase() !== qn) return;
         this.searchHits = r.orders || [];
+        this.searchHitsQ = qn;
         this.searchErr = '';
       } catch (e) {
+        // 关键词已变 ⇒ 这次的结果没意义，**不要**覆盖新关键词的状态
+        if (this.kw.trim().toLowerCase() !== qn) return;
         // 后端还没升级 / 网络断了 → 退回「只搜已加载的」，别让用户以为搜不了
         this.searchHits = [];
+        this.searchHitsQ = qn;
         this.searchErr = '搜索暂时用不了（只搜了已加载的单）';
       }
-      this.searching = false;
+      // ⚠ 只有「当前关键词」的结果才负责关掉「（搜索中…）」
+      if (this.kw.trim().toLowerCase() === qn) this.searching = false;
     },
     async loadQuotes(force) {
       if (this.quotesLoaded && !force) return;
