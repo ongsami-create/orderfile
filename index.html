@@ -1558,11 +1558,18 @@ function mockOrder(projNo) {
    ⚠ mockN= 旋钮（?mockN=79）：生成多少条 MO 单（默认 120）
    ⚠   ⇒ 用来在浏览器里跑「用户只有 80 单」的真实场景：
    ⚠      79 + SSD09 = 80 单 ⇒ 50 < 80 ⇒ 「加载更多」**必须出现**
-   ⚠      （而 !!r.truncated 会误判成「没有更多」⇒ 这就是硬要求 ① 的实测点） */
+   ⚠      （而 !!r.truncated 会误判成「没有更多」⇒ 这就是硬要求 ① 的实测点）
+   ⚠ mockQuiet=1 旋钮：造「**安静业务员**」场景（C1 的实测点，2026-11-17 v2.8.1）
+   ⚠   ⇒ MO 单全部变成**别人（PSD）建的**、而且是**最新的**
+   ⚠   ⇒ 登录的这个人的单变成**最旧的** ⇒ 旧版「全局最近 100 单」会把他挤空
+   ⚠ mockOldWindow=1 旋钮：模拟**旧后端**的窗口（全局最近 100 单，不公平）
+   ⚠   ⇒ 配合 mockQuiet ⇒ 列表**真的是空的** + total > 0
+   ⚠      ⇒ 用来实测「空状态不许再显示『新建一个单』」（C1 的收尾） */
 function _mockOrders_() {
   const now = Date.now(), H = 3600000;
+  const quiet = _mockFlag_('mockQuiet');
   const all = [
-    { projNo:'SSD09', customerName:'RAY ONG', customerContact:'012-345 6789', createdBy:'SSD', assignee:'FSD', participants:['JIA'], participantNames:['JIA'], lastAt:new Date(now-3*60000).toISOString(), lastAuthor:'SSD', lastAuthorName:'SAMI', lastType:'沟通', lastReplyChips:['已安排'], unread:true, hasPhotos:true, lastPhotos:3, hasDocs:true, lastDocs:1, done:false, clientProfile:{chips:['有小孩','洁癖','认死理'],contactPrefs:['只能下午联系']}, assigneeName:'STELLA' },
+    { projNo:'SSD09', customerName:'RAY ONG', customerContact:'012-345 6789', createdBy:'SSD', assignee:'FSD', participants:['JIA'], participantNames:['JIA'], lastAt:new Date(quiet ? now-30*24*H : now-3*60000).toISOString(), lastAuthor:'SSD', lastAuthorName:'SAMI', lastType:'沟通', lastReplyChips:['已安排'], unread:true, hasPhotos:true, lastPhotos:3, hasDocs:true, lastDocs:1, done:false, clientProfile:{chips:['有小孩','洁癖','认死理'],contactPrefs:['只能下午联系']}, assigneeName:'STELLA' },
     { projNo:'PSD39', customerName:'SIEW HEONG', customerContact:'010-999 8888', createdBy:'PSD', assignee:'PSD', participants:[], participantNames:[], lastAt:new Date(now-5*H).toISOString(), lastAuthor:'PSD', lastAuthorName:'PEGGY', lastType:'要求', lastReplyChips:[], unread:false, hasPhotos:false, lastPhotos:0, hasDocs:false, lastDocs:0, done:false, clientProfile:null, assigneeName:'PEGGY' }
   ];
   let n = 120;
@@ -1579,13 +1586,14 @@ function _mockOrders_() {
       projNo: 'MO' + nn,
       customerName: 'MOCK CUSTOMER ' + nn,
       customerContact: '011-222 ' + (1000 + i),
-      createdBy: 'SSD', assignee: 'SSD',
+      // ⚠ mockQuiet ⇒ 这些单**不是**登录这个人的（= 别人的新单）
+      createdBy: quiet ? 'PSD' : 'SSD', assignee: quiet ? 'PSD' : 'SSD',
       participants: [], participantNames: [],
       lastAt: new Date(now - i * 60000).toISOString(),   // 各不相同 ⇒ 方便看排序
-      lastAuthor: 'SSD', lastAuthorName: 'SAMI', lastType: '沟通',
+      lastAuthor: quiet ? 'PSD' : 'SSD', lastAuthorName: quiet ? 'PEGGY' : 'SAMI', lastType: '沟通',
       lastReplyChips: [], unread: false,
       hasPhotos: false, lastPhotos: 0, hasDocs: false, lastDocs: 0,
-      done: false, clientProfile: null, assigneeName: 'SAMI'
+      done: false, clientProfile: null, assigneeName: quiet ? 'PEGGY' : 'SAMI'
     });
   }
   return all;
@@ -1594,6 +1602,35 @@ function _mockOrders_() {
 function _mockFlag_(name) {
   try { return location.search.indexOf('?' + name + '=1') >= 0 || location.search.indexOf('&' + name + '=1') >= 0; }
   catch (e) { return false; }
+}
+/** mock 的「活动索引窗口」：真后端是「**每人自己最近 5 单优先** + 全局最近补齐到 100」
+ *  ⚠ 2026-11-17 v2.8.1：这一段是**照着后端 _activeSelect_ 写的**（口径一致） */
+function _mockWindow_(all) {
+  const MAX = 100, PER = 5;
+  const sorted = all.slice().sort((a,b) => String(b.lastAt).localeCompare(String(a.lastAt)));
+  if (sorted.length <= MAX) return sorted;
+  // ⚠ mockOldWindow=1 ⇒ 模拟**旧后端**（全局最近 100 单，不公平）
+  //   ⇒ 安静用户会被别人的新单挤空 ⇒ 用来实测 C1 的空状态
+  if (_mockFlag_('mockOldWindow')) return sorted.slice(0, MAX);
+  const byUser = {}, order = [];
+  sorted.forEach(r => {
+    const us = [r.createdBy].concat(r.participants||[]).filter(Boolean);
+    us.forEach(u => { if (!byUser[u]) { byUser[u] = []; order.push(u); } byUser[u].push(r); });
+  });
+  const picked = {}, out = [];
+  for (let round = 0; round < PER + 2 && out.length < MAX; round++) {
+    let added = false;
+    for (const u of order) {
+      const list = byUser[u];
+      if (list.length > round && !picked[list[round].projNo]) {
+        picked[list[round].projNo] = 1; out.push(list[round]); added = true;
+      }
+      if (out.length >= MAX) break;
+    }
+    if (!added) break;
+  }
+  sorted.forEach(r => { if (out.length < MAX && !picked[r.projNo]) { picked[r.projNo] = 1; out.push(r); } });
+  return out;
 }
 async function mockApi(action, p) {
   const users = {};
@@ -1633,18 +1670,27 @@ async function mockApi(action, p) {
     const followAll = mine.filter(r=>!r.done), doneAll = mine.filter(r=>r.done);
     // ⚠ 2026-11-17：计数在**切片之前**算（跟真后端一样）——
     //   否则前端新公式 (following.length < followingCount) 恒 false ⇒ 按钮永不出现
+    //   ⚠ v2.8.1：这两个是**真实**可见数（= 用户全部的单），不是窗口里的行数
     const followingCount = followAll.length, doneCount = doneAll.length;
+    // ⚠⚠ 2026-11-17 v2.8.1：模拟**活动索引窗口**（真后端：每人自己最近 5 单优先）
+    const win = _mockWindow_(all);
+    const winMine = win.filter(r => isAdmin || r.createdBy === p.username || (r.participants||[]).indexOf(p.username) >= 0);
+    winMine.sort((a,b) => String(b.lastAt).localeCompare(String(a.lastAt)));
+    const wFollow = winMine.filter(r=>!r.done), wDone = winMine.filter(r=>r.done);
+    // ⚠ 窗口内的可见行数（**切片之前**）—— 前端「还有更多」用它
+    const windowFollowing = wFollow.length, windowDone = wDone.length;
     const lim = parseInt(String(p.limit || ''), 10);
     const off = parseInt(String(p.offset || ''), 10);
     const L = (isNaN(lim) || lim <= 0) ? 0 : lim;
     const O = (isNaN(off) || off < 0) ? 0 : off;
-    const following = L > 0 ? followAll.slice(O, O+L) : (O > 0 ? followAll.slice(O) : followAll);
-    const done = L > 0 ? doneAll.slice(O, O+L) : (O > 0 ? doneAll.slice(O) : doneAll);
+    const following = L > 0 ? wFollow.slice(O, O+L) : (O > 0 ? wFollow.slice(O) : wFollow);
+    const done = L > 0 ? wDone.slice(O, O+L) : (O > 0 ? wDone.slice(O) : wDone);
     return { ok:true, following: following, done: done,
       followingCount: followingCount, doneCount: doneCount, emptyCount: 0,
       total: followingCount + doneCount,
-      // ⚠ 模拟「活动索引窗口 100 单」：超过 100 ⇒ 更早的单要用搜索找
-      truncated: (followingCount + doneCount) > 100 };
+      windowFollowing: windowFollowing, windowDone: windowDone,
+      // ⚠ 模拟「活动索引真的砍掉过行」：有可见的单不在窗口里
+      truncated: (followingCount + doneCount) > (windowFollowing + windowDone) };
   }
   if (action === 'searchOrders') {
     const q = String(p.q || '').trim().toLowerCase();
@@ -2205,7 +2251,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/17 21:00:23';
+window.__PAGE_BUILD__ = '2026/11/17 22:50:31';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2243,6 +2289,7 @@ createApp({
       inboxOffset: 0,          // 已经加载到第几页（下一页请求用的 offset）
       inboxFollowCount: 0,     // 「跟进中」可见总条数（未切片）
       inboxDoneCount: 0,       // 「已完成」可见总条数（未切片）
+      inboxTotal: 0,           // ⚠ 2026-11-17 v2.8.1：真实可见单数（含空壳）—— 空状态要靠它判断
       inboxTruncated: false,   // 活动索引真的砍掉过行 ⇒ 更早的单要用搜索找
       searchHits: [],          // 服务端搜索命中的单（能搜到活动索引窗口之外的老单）
       searchHitsQ: '',         // ⚠ searchHits 是**哪个关键词**的结果（防竞态用）
@@ -2302,10 +2349,15 @@ createApp({
     },
     emptyTitle() {
       if (this.tab === 'quotes') return '没有待跟进的报价';
+      // ⚠⚠ 2026-11-17 v2.8.1（C1）：**用户其实有单**，只是不在列表窗口里
+      //   ⇒ 绝不能再让他去「新建一个单」（会**重复建单**）
+      if (this.inboxTotal > 0) return '你的 ' + this.inboxTotal + ' 单不在最近窗口里';
       return this.tab === 'done' ? '还没有完成的事' : '暂时没有在跟进的';
     },
     emptyHint() {
       if (this.tab === 'quotes') return '你在报价系统建的单会出现在这里，加了资料就转到「跟进中」。';
+      // ⚠⚠ 同上：有单但列表空 ⇒ 告诉他**怎么找到**，不是叫他再建一个
+      if (this.inboxTotal > 0) return '用上面的搜索框找（单号 / 客户名 / 电话都能搜）。';
       if (this.tab === 'done') return '有人点「完成」之后会出现在这里。';
       return '点右下角 ＋ 新建一个单，或去「待处理」挑一张报价。';
     },
@@ -2857,14 +2909,19 @@ createApp({
         this.inbox = { following: r.following || [], done: r.done || [] };
         this.inboxFollowCount = r.followingCount || 0;
         this.inboxDoneCount = r.doneCount || 0;
+        // ⚠⚠ 2026-11-17 v2.8.1：真实可见单数（**诚实**的数字）
+        //   total = followingCount + doneCount + emptyCount（后端算的）
+        //   ⇒ 空状态靠它判断「你其实有单，只是没在窗口里」
+        this.inboxTotal = (r.total != null) ? r.total : (this.inboxFollowCount + this.inboxDoneCount);
         this.inboxTruncated = !!r.truncated;
-        // ⚠⚠ 「还有更多」= **本页行数 < 可见总条数**
+        // ⚠⚠ 「还有更多」= **本页行数 < 窗口内的可见行数**
         //   ⛔ 不能用 !!r.truncated —— truncated 的语义是「活动索引真的砍掉过行」
         //      （= 更早的单要用搜索找），不是「还有更多可以加载」。
-        //      用错的后果：用户只有 80 单时 truncated=false ⇒ 按钮不出现
-        //      ⇒ 第 51~80 单**永远看不到**。
-        this.inboxMore = (this.inbox.following.length < (r.followingCount || 0))
-                       || (this.inbox.done.length < (r.doneCount || 0));
+        //   ⛔ 也不能用「真实总数」（followingCount）—— 窗口里没有的单，
+        //      点「加载更多」也加载不出来 ⇒ 按钮会一直亮着但点不动。
+        //   ⚠ 老后端（v2.8.0）没有 windowFollowing ⇒ 退回用真实总数（= 老行为）
+        this.inboxMore = (this.inbox.following.length < (r.windowFollowing != null ? r.windowFollowing : (r.followingCount || 0)))
+                       || (this.inbox.done.length < (r.windowDone != null ? r.windowDone : (r.doneCount || 0)));
         _cachePut_('inbox', this.inbox);
         this.quotesLoaded = false;
       } catch (e) { if (!c) this.say('拉列表失败：' + e.message, 'err'); }
@@ -2892,10 +2949,11 @@ createApp({
         //   ⚠⚠ 注释里**不许**出现反引号 —— 会提前闭合本补丁的模板字符串！
         this.inboxFollowCount = (r.followingCount != null) ? r.followingCount : this.inboxFollowCount;
         this.inboxDoneCount = (r.doneCount != null) ? r.doneCount : this.inboxDoneCount;
+        this.inboxTotal = (r.total != null) ? r.total : this.inboxTotal;
         this.inboxTruncated = !!r.truncated;
-        // ⚠⚠ 同 refreshInbox：判断依据是「本页行数 < 可见总条数」，不是 truncated
-        this.inboxMore = (this.inbox.following.length < (r.followingCount || 0))
-                       || (this.inbox.done.length < (r.doneCount || 0));
+        // ⚠⚠ 同 refreshInbox：判断依据是「本页行数 < **窗口内**的可见行数」，不是 truncated
+        this.inboxMore = (this.inbox.following.length < (r.windowFollowing != null ? r.windowFollowing : (r.followingCount || 0)))
+                       || (this.inbox.done.length < (r.windowDone != null ? r.windowDone : (r.doneCount || 0)));
         _cachePut_('inbox', this.inbox);
       } catch (e) {
         this.say('加载更多失败：' + e.message, 'err', 4000);
