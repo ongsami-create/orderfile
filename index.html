@@ -97,6 +97,10 @@ input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
 
 /* ---------- 列表 ---------- */
 .list{background:var(--card);margin:0 16px;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.listmore{padding:12px 16px 20px;text-align:center}
+.listmore .lm-txt{display:block;font-size:12px;color:var(--muted);margin-bottom:8px}
+.listmore .btnmore{font-size:13px;padding:9px 24px;display:inline-block;width:auto;margin:0 auto}
+.listmore .lm-err{color:var(--danger,#d93a3a)}
 .item{
   display:flex;align-items:flex-start;gap:10px;
   width:100%;text-align:left;padding:12px 15px 12px 22px;
@@ -575,6 +579,19 @@ textarea.field{resize:vertical;min-height:78px;line-height:1.55}
             <button class="del" v-if="isAdmin" title="删除这张单" @click.stop="delOrder(r)">🗑</button>
           </div>
         </div>
+      </div>
+
+      <!-- ⭐ 2026-11-17：列表分页提示 + 加载更多
+           ⚠ 必须显示「共 N 单，已显示 M 单」—— 列表只显示最近 100 单，
+             不说的话用户会以为单子丢了（更早的用搜索找） -->
+      <div class="listmore" v-if="nav==='orders' && tab!=='quotes' && (curList.length || kw)">
+        <span class="lm-txt" v-if="kw">找到 {{ curList.length }} 单<template v-if="searching">（搜索中…）</template></span>
+        <span class="lm-txt" v-else>共 {{ tabTotal }} 单，已显示 {{ curList.length }} 单</span>
+        <button class="btn btnmore" v-if="!kw && inboxMore" :disabled="busy" @click="loadMoreInbox()">
+          <span v-if="busy" class="spin"></span>加载更多
+        </button>
+        <span class="lm-txt" v-else-if="!kw && inboxTruncated">更早的单用搜索找</span>
+        <span class="lm-txt lm-err" v-if="searchErr">{{ searchErr }}</span>
       </div>
 
       <div class="list" v-else style="padding:0">
@@ -1535,6 +1552,34 @@ function mockOrder(projNo) {
     ]
   };
 }
+/* ⭐ 2026-11-17：mock 的订单数据（getInbox / searchOrders **共用同一份**）
+   ⚠ 原来 mock 只有 2 条单 ⇒ limit=50 一页就装完 ⇒「加载更多」永远测不到
+   ⚠ 不要在两个分支里各写一份数组（改起来会走偏） */
+function _mockOrders_() {
+  const now = Date.now(), H = 3600000;
+  const all = [
+    { projNo:'SSD09', customerName:'RAY ONG', customerContact:'012-345 6789', createdBy:'SSD', assignee:'FSD', participants:['JIA'], participantNames:['JIA'], lastAt:new Date(now-3*60000).toISOString(), lastAuthor:'SSD', lastAuthorName:'SAMI', lastType:'沟通', lastReplyChips:['已安排'], unread:true, hasPhotos:true, lastPhotos:3, hasDocs:true, lastDocs:1, done:false, clientProfile:{chips:['有小孩','洁癖','认死理'],contactPrefs:['只能下午联系']}, assigneeName:'STELLA' },
+    { projNo:'PSD39', customerName:'SIEW HEONG', customerContact:'010-999 8888', createdBy:'PSD', assignee:'PSD', participants:[], participantNames:[], lastAt:new Date(now-5*H).toISOString(), lastAuthor:'PSD', lastAuthorName:'PEGGY', lastType:'要求', lastReplyChips:[], unread:false, hasPhotos:false, lastPhotos:0, hasDocs:false, lastDocs:0, done:false, clientProfile:null, assigneeName:'PEGGY' }
+  ];
+  // ⭐ 2026-11-17：再补 120 条 ⇒ SSD 登录能看到 121 条（120 + SSD09）
+  //   ⇒ limit=50 ⇒ 3 页（50 / 50 / 21）⇒「加载更多」能测
+  for (let i = 1; i <= 120; i++) {
+    const n = (i < 10 ? '0' + i : '' + i);
+    all.push({
+      projNo: 'MO' + n,
+      customerName: 'MOCK CUSTOMER ' + n,
+      customerContact: '011-222 ' + (1000 + i),
+      createdBy: 'SSD', assignee: 'SSD',
+      participants: [], participantNames: [],
+      lastAt: new Date(now - i * 60000).toISOString(),   // 各不相同 ⇒ 方便看排序
+      lastAuthor: 'SSD', lastAuthorName: 'SAMI', lastType: '沟通',
+      lastReplyChips: [], unread: false,
+      hasPhotos: false, lastPhotos: 0, hasDocs: false, lastDocs: 0,
+      done: false, clientProfile: null, assigneeName: 'SAMI'
+    });
+  }
+  return all;
+}
 function mockApi(action, p) {
   const users = {};
   Object.keys(MOCK_USERS).forEach(k => {
@@ -1566,15 +1611,39 @@ function mockApi(action, p) {
       chipSets, source: 'MOCK' };
   }
   if (action === 'getInbox') {
-    const now = Date.now(), H = 3600000;
-    const all = [
-      { projNo:'SSD09', customerName:'RAY ONG', customerContact:'012-345 6789', createdBy:'SSD', assignee:'FSD', participants:['JIA'], participantNames:['JIA'], lastAt:new Date(now-3*60000).toISOString(), lastAuthor:'SSD', lastAuthorName:'SAMI', lastType:'沟通', lastReplyChips:['已安排'], unread:true, hasPhotos:true, lastPhotos:3, hasDocs:true, lastDocs:1, done:false, clientProfile:{chips:['有小孩','洁癖','认死理'],contactPrefs:['只能下午联系']}, assigneeName:'STELLA' },
-      { projNo:'PSD39', customerName:'SIEW HEONG', customerContact:'010-999 8888', createdBy:'PSD', assignee:'PSD', participants:[], participantNames:[], lastAt:new Date(now-5*H).toISOString(), lastAuthor:'PSD', lastAuthorName:'PEGGY', lastType:'要求', lastReplyChips:[], unread:false, hasPhotos:false, lastPhotos:0, hasDocs:false, lastDocs:0, done:false, clientProfile:null, assigneeName:'PEGGY' }
-    ];
+    const all = _mockOrders_();
     const isAdmin = (p.role === 'admin');
     const mine = all.filter(r => isAdmin || r.createdBy === p.username || (r.participants||[]).indexOf(p.username) >= 0);
-    return { ok:true, following: mine.filter(r=>!r.done), done: mine.filter(r=>r.done),
-      followingCount: mine.filter(r=>!r.done).length, doneCount: mine.filter(r=>r.done).length };
+    mine.sort((a,b) => String(b.lastAt).localeCompare(String(a.lastAt)));
+    const followAll = mine.filter(r=>!r.done), doneAll = mine.filter(r=>r.done);
+    // ⚠ 2026-11-17：计数在**切片之前**算（跟真后端一样）——
+    //   否则前端新公式 (following.length < followingCount) 恒 false ⇒ 按钮永不出现
+    const followingCount = followAll.length, doneCount = doneAll.length;
+    const lim = parseInt(String(p.limit || ''), 10);
+    const off = parseInt(String(p.offset || ''), 10);
+    const L = (isNaN(lim) || lim <= 0) ? 0 : lim;
+    const O = (isNaN(off) || off < 0) ? 0 : off;
+    const following = L > 0 ? followAll.slice(O, O+L) : (O > 0 ? followAll.slice(O) : followAll);
+    const done = L > 0 ? doneAll.slice(O, O+L) : (O > 0 ? doneAll.slice(O) : doneAll);
+    return { ok:true, following: following, done: done,
+      followingCount: followingCount, doneCount: doneCount, emptyCount: 0,
+      total: followingCount + doneCount,
+      // ⚠ 模拟「活动索引窗口 100 单」：超过 100 ⇒ 更早的单要用搜索找
+      truncated: (followingCount + doneCount) > 100 };
+  }
+  if (action === 'searchOrders') {
+    const q = String(p.q || '').trim().toLowerCase();
+    const isAdmin = (p.role === 'admin');
+    const all = _mockOrders_();
+    const mine = all.filter(r => isAdmin || r.createdBy === p.username || (r.participants||[]).indexOf(p.username) >= 0);
+    const hits = q ? mine.filter(r => {
+      const fs = [r.projNo, r.customerName, r.customerContact, r.salesName, r.lastAuthorName, r.assigneeName];
+      for (let i=0;i<fs.length;i++) if (fs[i] && String(fs[i]).toLowerCase().indexOf(q) >= 0) return true;
+      return false;
+    }) : [];
+    // ⚠ 兜底用**各自**的 projNo（a.lastAt || a.projNo）—— 别写成 b.projNo
+    hits.sort((a,b) => String(b.lastAt || b.projNo).localeCompare(String(a.lastAt || a.projNo)));
+    return { ok:true, orders: hits, count: hits.length };
   }
   if (action === 'getPendingQuotes') {
     const quotes = [
@@ -1775,7 +1844,8 @@ async function annApi(action, params) {
  */
 const CACHE_TTL = {
   cfg:   30 * 60 * 1000,   // 名册/词库：30 分钟
-  inbox: 3 * 60 * 1000,    // 列表：3 分钟
+  inbox: 10 * 60 * 1000,   // 列表：10 分钟（2026-11-17，从 3 分钟调长；
+                           //   打开 App 时是「先显示缓存 + 后台刷新」，不怕不新鲜）
   notifs: 2 * 60 * 1000,   // 铃铛：2 分钟
   wall:  15 * 60 * 1000,   // 公告：15 分钟
   order: 5 * 60 * 1000     // 单据：5 分钟
@@ -2105,7 +2175,7 @@ function readB64(file) {
   });
 }
 
-window.__PAGE_BUILD__ = '2026/11/17 13:42:39';
+window.__PAGE_BUILD__ = '2026/11/17 18:46:11';
 const { createApp } = Vue;
 createApp({
   data() {
@@ -2138,6 +2208,15 @@ createApp({
       kw: '', searching: false,
       order: null, timeline: [], editEv: null,
       notifs: [], notifUnread: 0,
+      // ⭐ 2026-11-17：列表分页（后端列表只给「最近 100 单」里的这一页）
+      inboxMore: false,        // 还有更多单可以「加载更多」
+      inboxOffset: 0,          // 已经加载到第几页（下一页请求用的 offset）
+      inboxFollowCount: 0,     // 「跟进中」可见总条数（未切片）
+      inboxDoneCount: 0,       // 「已完成」可见总条数（未切片）
+      inboxTruncated: false,   // 活动索引真的砍掉过行 ⇒ 更早的单要用搜索找
+      searchHits: [],          // 服务端搜索命中的单（能搜到活动索引窗口之外的老单）
+      searchErr: '',           // 服务端搜索失败时的提示
+      searchTimer: 0,          // 搜索防抖计时器
       busy: false, toast: '', toastKind: '', toastTimer: null,
       search: { dept:'sales', owner:'', projNo:'', msg:'', ok:false, found:null, chips:[] },
       form: { projNo:'', type:'', content:'', replyChips:[], todoMode:false, todos:[], photos:[], docs:[], remindTo:'', depts:[], participants:[], done:false, note:'', chips:[], contactPrefs:[], showProfile:false },
@@ -2164,11 +2243,22 @@ createApp({
         .sort((a,b) => (a.displayName||'').localeCompare(b.displayName||''));
     },
     curList() {
-      const base = this.tab === 'quotes' ? this.quotes : (this.tab === 'done' ? this.inbox.done : this.inbox.following);
       const q = this.kw.trim().toLowerCase();
+      const base = this.tab === 'quotes' ? this.quotes : (this.tab === 'done' ? this.inbox.done : this.inbox.following);
       if (!q) return base;
-      return base.filter(r => this._hit(r, q));
+      // 「待处理」tab 还是客户端过滤（报价单数量少）
+      if (this.tab === 'quotes') return base.filter(r => this._hit(r, q));
+      // ⚠ 2026-11-17：订单 tab 的搜索结果 = **服务端命中**（能搜到更早的老单）
+      //   + **已加载行里客户端命中的行**（后端没升级时也还能搜，服务端命中的排前面）
+      const local = base.filter(r => this._hit(r, q));
+      const remote = this.searchHits.filter(r => (this.tab === 'done') ? !!r.done : !r.done);
+      const seen = {};
+      const out = [];
+      remote.forEach(r => { if (r && r.projNo && !seen[r.projNo]) { seen[r.projNo] = 1; out.push(r); } });
+      local.forEach(r => { if (r && r.projNo && !seen[r.projNo]) { seen[r.projNo] = 1; out.push(r); } });
+      return out;
     },
+    tabTotal() { return this.tab === 'done' ? this.inboxDoneCount : this.inboxFollowCount; },
     tabTitle() { return this.tab === 'quotes' ? '待处理' : (this.tab === 'done' ? '已完成' : '跟进中'); },
     tabSub() {
       if (this.tab === 'quotes') return '你在报价系统建了、还没开始跟进的单';
@@ -2258,6 +2348,12 @@ createApp({
     liveEventCount() {
       return ((this.order && this.order.events) || []).filter(e => !e.deleted).length;
     }
+  },
+
+  watch: {
+    // ⚠ 2026-11-17：分页后「搜索」必须还能搜到**活动索引窗口之外**的老单
+    //   ⇒ 只做客户端过滤只能搜到已加载的 50 单 ⇒ 必须问后端
+    kw() { this._onSearch_(); },
   },
 
   methods: {
@@ -2715,21 +2811,84 @@ createApp({
       // ⚠ 先显示上次的缓存（秒开），后台再拉新的
       const c = _cacheGet_('inbox', CACHE_TTL.inbox);
       if (c && c.d) this.inbox = c.d;
+      // ⚠⚠ 2026-11-17：刷新 = 回到**第 1 页**，offset 必须**在发请求之前**归零
+      //   不归零的话：用户加载到第 3 页（offset=100）→ 某次刷新后列表只剩第 1 页，
+      //   但 offset 还是 100 → 再点「加载更多」直接跳到第 3 页 → **第 2 页的单永远看不到**
+      this.inboxOffset = 0;
       this.busy = true;
       try {
-        const r = await api('getInbox', { username: this.me, role: this.myRole });
+        // ⚠ limit=50：手机一次只渲染 50 行，DOM 节点少才不卡
+        const r = await api('getInbox', { username: this.me, role: this.myRole, limit: 50, offset: 0 });
         this.inbox = { following: r.following || [], done: r.done || [] };
+        this.inboxFollowCount = r.followingCount || 0;
+        this.inboxDoneCount = r.doneCount || 0;
+        this.inboxTruncated = !!r.truncated;
+        // ⚠⚠ 「还有更多」= **本页行数 < 可见总条数**
+        //   ⛔ 不能用 !!r.truncated —— truncated 的语义是「活动索引真的砍掉过行」
+        //      （= 更早的单要用搜索找），不是「还有更多可以加载」。
+        //      用错的后果：用户只有 80 单时 truncated=false ⇒ 按钮不出现
+        //      ⇒ 第 51~80 单**永远看不到**。
+        this.inboxMore = (this.inbox.following.length < (r.followingCount || 0))
+                       || (this.inbox.done.length < (r.doneCount || 0));
         _cachePut_('inbox', this.inbox);
         this.quotesLoaded = false;
       } catch (e) { if (!c) this.say('拉列表失败：' + e.message, 'err'); }
       this.busy = false;
       this.loadNotifs();
     },
+    /** ⭐ 2026-11-17：加载更多（后端列表只给最近 100 单） */
+    async loadMoreInbox() {
+      if (this.busy || !this.inboxMore) return;
+      this.busy = true;
+      const next = this.inboxOffset + 50;
+      try {
+        const r = await api('getInbox', { username: this.me, role: this.myRole, limit: 50, offset: next });
+        const addF = r.following || [], addD = r.done || [];
+        if (!addF.length && !addD.length) { this.inboxMore = false; this.busy = false; return; }
+        this.inbox = {
+          following: this.inbox.following.concat(addF),
+          done: this.inbox.done.concat(addD)
+        };
+        this.inboxOffset = next;
+        this.inboxFollowCount = r.followingCount || this.inboxFollowCount;
+        this.inboxDoneCount = r.doneCount || this.inboxDoneCount;
+        this.inboxTruncated = !!r.truncated;
+        // ⚠⚠ 同 refreshInbox：判断依据是「本页行数 < 可见总条数」，不是 truncated
+        this.inboxMore = (this.inbox.following.length < (r.followingCount || 0))
+                       || (this.inbox.done.length < (r.doneCount || 0));
+        _cachePut_('inbox', this.inbox);
+      } catch (e) {
+        this.say('加载更多失败：' + e.message, 'err', 4000);
+      }
+      this.busy = false;
+    },
     switchTab(t) {
       // ⚠ 不要 await —— 切 tab 必须**立刻**响应，
       //    报价数据在后台慢慢读（loadQuotes 自己管 loading）。
       this.tab = t;
       if (t === 'quotes') this.loadQuotes();
+    },
+    /* ---------- 搜索（服务端） ---------- */
+    _onSearch_() {
+      // 防抖：每敲一个字就问一次后端太贵（后端要读全量索引）
+      if (this.searchTimer) { clearTimeout(this.searchTimer); this.searchTimer = 0; }
+      const q = this.kw.trim();
+      if (!q) { this.searchHits = []; this.searchErr = ''; return; }
+      this.searchTimer = setTimeout(() => { this.searchTimer = 0; this._runSearch_(q); }, 350);
+    },
+    async _runSearch_(q) {
+      this.searching = true;
+      try {
+        // ⚠ 不传 deep ⇒ 后端只搜索引，不扫档案正文（快）
+        const r = await api('searchOrders', { q: q, username: this.me, role: this.myRole });
+        this.searchHits = r.orders || [];
+        this.searchErr = '';
+      } catch (e) {
+        // 后端还没升级 / 网络断了 → 退回「只搜已加载的」，别让用户以为搜不了
+        this.searchHits = [];
+        this.searchErr = '搜索暂时用不了（只搜了已加载的单）';
+      }
+      this.searching = false;
     },
     async loadQuotes(force) {
       if (this.quotesLoaded && !force) return;
@@ -3535,6 +3694,7 @@ ${evs}
 /*__PATCH_SUBMITLOCK__*/
 /*__PATCH_PICKER__*/
 /*__PATCH_GETORDER__*/
+/*__PATCH_ACTIVE__*/
 </script>
 
 <!-- 启动保险：8 秒还没接管 → 提示（别让用户对着转圈发呆） -->
